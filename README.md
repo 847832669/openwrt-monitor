@@ -85,16 +85,22 @@ npm run dev
 ### 方法二：Docker 模板（原生 UI）
 
 1. **Docker** → **Settings** → **Template Repositories**
-2. 在输入框粘贴：
+2. 添加模板源（如果输入框可用）：
    ```
    https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
    ```
-3. 点 **Add** → **Apply**
-4. 回到 **Docker** → **Add Container**
-5. **Template** 下拉选择 **OpenWrtMonitor**
-6. **Apply** 完成 🎉
 
-> 或者手动添加：
+   或者直接通过终端复制到 U 盘：
+   ```bash
+   # 下载模板文件到 Unraid 启动 U 盘的模板目录
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-openwrt-monitor.xml \
+     https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
+   ```
+3. **Apply** 保存
+4. **Docker** → **Add Container** → **Template** 下拉选择 **OpenWrtMonitor**
+5. **Apply** 完成 🎉
+
+> 或者完全手动填：
 > - 仓库: `ghcr.io/847832669/openwrt-monitor:latest`
 > - 端口: `8000`
 > - 路径: `/mnt/user/appdata/openwrt-monitor/data/` → `/app/data`
