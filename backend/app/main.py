@@ -89,3 +89,12 @@ app.include_router(alerts.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": settings.app_version, "devices_known": 0}
+
+
+@app.get("/api/version")
+async def get_version():
+    return {
+        "version": settings.app_version,
+        "app_name": settings.app_name,
+        "repo": "https://github.com/847832669/openwrt-monitor",
+    }
