@@ -3,6 +3,7 @@ name: Build & Push Docker Image
 on:
   push:
     branches: [main]
+    tags: ['v*']          # 推送标签时也触发，如 v0.1.0
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -18,6 +19,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          # 如果是 tag 推送，用 tag 名；否则用短 commit SHA
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$VERSION"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,4 +57,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
