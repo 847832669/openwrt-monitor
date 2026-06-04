@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>OpenWrtMonitor</Name>
+  <Repository>ghcr.io/847832669/openwrt-monitor:latest</Repository>
+  <Registry>https://github.com/847832669/openwrt-monitor/pkgs/container/openwrt-monitor</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/847832669/openwrt-monitor/issues</Support>
+  <Project>https://github.com/847832669/openwrt-monitor</Project>
+  <Overview>OpenWrt 性能监控可视化平台 — 实时仪表盘 / 系统分析 / 网络分析 / 连接设备 / 历史回看 / 智能告警</Overview>
+  <Category>Network:Tools</Category>
+  <WebUI>http://[IP]:[PORT:8000]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/847832669/openwrt-monitor/main/docs/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>0</DateInstalled>
+  <Requires/>
+  <Config Name="WebUI Port" Target="8000" Default="8000" Mode="tcp" Description="Web 管理端口" Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="Data Path" Target="/app/data" Default="/mnt/user/appdata/openwrt-monitor/data/" Mode="rw" Description="数据持久化目录（数据库、告警规则）" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/openwrt-monitor/data/</Config>
+</Container>

@@ -69,6 +69,36 @@ npm run dev
 
 浏览器打开 `http://localhost:3000`（热更新）或 `http://localhost:8000`（生产模式）。
 
+## 🖥️ Unraid 图形化安装（推荐）
+
+### 方法一：Docker Compose Manager 插件
+
+1. **Apps** → 安装 **Docker Compose Manager** 插件
+2. 打开 **Docker Compose Manager** → **Add New Stack**
+3. 填：
+   ```
+   Name: openwrt-monitor
+   Path to Stack File: /mnt/user/appdata/openwrt-monitor/docker-compose.yml
+   ```
+4. **Create Stack** 完成 🎉
+
+### 方法二：Docker 模板（原生 UI）
+
+1. **Docker** → **ADD CONTAINER**
+2. 在 **Template** 下拉选择 **Repository**：
+   ```
+   https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
+   ```
+3. 或手动填入：
+   ```
+   仓库: ghcr.io/847832669/openwrt-monitor:latest
+   端口: 8000
+   路径: /mnt/user/appdata/openwrt-monitor/data/ → /app/data
+   ```
+4. **Apply** 完成 🎉
+
+安装后打开 `http://你的UnraidIP:8000` 即可使用。
+
 ## 📖 使用指南
 
 1. 打开网页 → **设备管理** → 添加你的 OpenWrt 路由器
