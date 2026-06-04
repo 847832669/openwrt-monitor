@@ -27,9 +27,9 @@
 ┌─────────────────────────────────────┐
 │  Vue 3 + ECharts + TailwindCSS      │  ← 前端
 ├─────────────────────────────────────┤
-│  FastAPI + asyncssh + SQLAlchemy     │  ← 后端
+│  FastAPI + asyncssh + SQLAlchemy    │  ← 后端
 ├─────────────────────────────────────┤
-│  WebSocket 实时推送                   │  ← 通信
+│  WebSocket 实时推送                  │  ← 通信
 ├─────────────────────────────────────┤
 │  SSH ↔ OpenWrt (Unraid VM)          │  ← 采集
 └─────────────────────────────────────┘
@@ -90,9 +90,8 @@ npm run dev
    https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
    ```
 
-   或者直接通过终端复制到 U 盘：
+   或者直接通过终端下载到 U 盘：
    ```bash
-   # 下载模板文件到 Unraid 启动 U 盘的模板目录
    wget -O /boot/config/plugins/dockerMan/templates-user/my-openwrt-monitor.xml \
      https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
    ```
