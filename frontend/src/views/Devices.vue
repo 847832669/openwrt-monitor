@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-6 max-w-5xl mx-auto">
+  <div class="p-3 lg:p-6 space-y-6 max-w-5xl mx-auto">
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-xl font-bold text-white">设备管理</h2>

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-6 max-w-4xl mx-auto">
+  <div class="p-3 lg:p-6 space-y-6 max-w-4xl mx-auto">
     <div>
       <h2 class="text-xl font-bold text-white">告警规则</h2>
       <p class="text-sm text-slate-400 mt-0.5">自定义告警触发条件 · 修改即时生效</p>

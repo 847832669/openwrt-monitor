@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-6 max-w-6xl mx-auto">
+  <div class="p-3 lg:p-6 space-y-6 max-w-6xl mx-auto">
     <!-- 标题 + 设备统计 -->
     <div class="flex items-center justify-between">
       <div>

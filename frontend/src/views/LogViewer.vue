@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+  <div class="p-3 lg:p-6 space-y-4 max-w-7xl mx-auto h-full flex flex-col">
     <!-- 标题栏 -->
     <div class="flex items-center justify-between shrink-0">
       <div>
@@ -65,7 +65,7 @@
     <!-- 日志内容 -->
     <div v-else ref="logContainer"
       class="flex-1 bg-black/40 border border-slate-800 rounded-xl overflow-auto font-mono text-xs leading-relaxed">
-      <div v-if="filteredLogs.length === 0" class="p-6 text-center text-slate-600">
+      <div v-if="filteredLogs.length === 0" class="p-3 lg:p-6 text-center text-slate-600">
         {{ loading ? '加载中…' : '暂无日志' }}
       </div>
       <div v-else class="p-3 space-y-0.5">
