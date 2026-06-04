@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .config import settings
 from .database import init_db
-from .routers import devices, metrics, ws, settings as settings_router, alerts
+from .routers import devices, metrics, ws, settings as settings_router, alerts, logs
 from .routers.ws import broadcast
 from .collectors.scheduler import CollectScheduler
 
@@ -84,6 +84,7 @@ app.include_router(metrics.router)
 app.include_router(ws.router)
 app.include_router(settings_router.router)
 app.include_router(alerts.router)
+app.include_router(logs.router)
 
 
 @app.get("/api/health")

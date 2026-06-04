@@ -198,6 +198,7 @@ const navItems = [
   { path: '/network', icon: '🌐', label: '网络分析' },
   { path: '/lan', icon: '🖥️', label: '连接设备' },
   { path: '/alerts', icon: '🔔', label: '告警规则' },
+  { path: '/logs', icon: '📋', label: '系统日志' },
   { path: '/devices', icon: '⚙️', label: '设备管理' },
 ]
 </script>
