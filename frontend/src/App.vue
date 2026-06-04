@@ -159,16 +159,20 @@ async function checkUpdate() {
     appVersion.value = verData.version
 
     // 查 GitHub 最新 release
-    const ghRes = await fetch('https://api.github.com/repos/847832669/openwrt-monitor/releases/latest', {
-      headers: { 'Accept': 'application/vnd.github+json' }
-    })
+    const ghRes = await fetch('https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5')
     if (!ghRes.ok) {
       checkToast.value = '无法检查更新'
       setTimeout(() => checkToast.value = '', 2000)
       return
     }
-    const release = await ghRes.json()
-    const latest = release.tag_name.replace(/^v/, '')
+    const tags = await ghRes.json()
+    const verTags = tags.map(t => t.name).filter(t => t.startsWith('v'))
+    if (!verTags.length) {
+      checkToast.value = '未找到版本信息'
+      setTimeout(() => checkToast.value = '', 2000)
+      return
+    }
+    const latest = verTags[0].replace(/^v/, '')
     latestVersion.value = latest
 
     const cur = appVersion.value.split('.').map(Number)
@@ -268,15 +272,20 @@ onMounted(() => {
   fetch('/api/alerts').then(r => r.json()).then(d => { alertList.value = d.alerts || [] }).catch(() => {})
   // 版本检查
   fetch('/api/version').then(r => r.json()).then(v => { appVersion.value = v.version }).catch(() => {})
-  fetch('https://api.github.com/repos/847832669/openwrt-monitor/releases/latest', { headers: { 'Accept': 'application/vnd.github+json' } })
-    .then(r => r.ok ? r.json() : null).then(r => {
-      if (r) {
-        const latest = r.tag_name.replace(/^v/, '')
-        latestVersion.value = latest
-        const cur = appVersion.value.split('.').map(Number)
-        const lat = latest.split('.').map(Number)
-        for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
-          if ((lat[i] || 0) > (cur[i] || 0)) { updateAvailable.value = true; break }
+  fetch('https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5')
+    .then(r => r.ok ? r.json() : null).then(tags => {
+      if (tags && tags.length) {
+        // 找最新的 v* 标签
+        const verTags = tags.map(t => t.name).filter(t => t.startsWith('v'))
+        if (verTags.length) {
+          const latest = verTags[0].replace(/^v/, '')
+          latestVersion.value = latest
+          const cur = appVersion.value.split('.').map(Number)
+          const lat = latest.split('.').map(Number)
+          updateAvailable.value = false
+          for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
+            if ((lat[i] || 0) > (cur[i] || 0)) { updateAvailable.value = true; break }
+          }
         }
       }
     }).catch(() => {})
