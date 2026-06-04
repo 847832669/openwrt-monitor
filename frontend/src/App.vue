@@ -48,7 +48,9 @@
         </div>
         <div class="flex items-center justify-between text-[10px]">
           <span class="text-slate-600">{{ themeMap[theme].label }}</span>
-          <span class="text-slate-600">v{{ appVersion }}</span>
+          <button @click="checkUpdate" class="text-slate-600 hover:text-brand-300 transition-colors" title="点击检查更新">
+            v{{ appVersion }}{{ checkingVer ? ' 🔍' : '' }}
+          </button>
         </div>
         <div v-if="updateAvailable"
           class="bg-brand-600/20 border border-brand-700/30 rounded-lg px-2 py-1 text-center">
@@ -123,6 +125,14 @@
           <span class="truncate max-w-[3rem]">{{ item.label }}</span>
         </router-link>
       </nav>
+      <!-- 更新检查 Toast -->
+      <div v-if="checkToast"
+        class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm shadow-lg transition-all"
+        :class="checkToast.includes('✅') ? 'bg-green-900/80 text-green-300 border border-green-700/50' :
+                checkToast.includes('🆕') ? 'bg-brand-600/80 text-brand-200 border border-brand-500/50' :
+                'bg-slate-800 text-slate-300 border border-slate-600'">
+        {{ checkToast }}
+      </div>
     </div>
   </div>
 </template>
@@ -137,6 +147,50 @@ const alertList = ref([])
 const appVersion = ref('0.3.1')
 const latestVersion = ref(null)
 const updateAvailable = ref(false)
+const checkingVer = ref(false)
+const checkToast = ref('')
+
+async function checkUpdate() {
+  checkingVer.value = true
+  try {
+    // 先获取本地版本
+    const verRes = await fetch('/api/version')
+    const verData = await verRes.json()
+    appVersion.value = verData.version
+
+    // 查 GitHub 最新 release
+    const ghRes = await fetch('https://api.github.com/repos/847832669/openwrt-monitor/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    })
+    if (!ghRes.ok) {
+      checkToast.value = '无法检查更新'
+      setTimeout(() => checkToast.value = '', 2000)
+      return
+    }
+    const release = await ghRes.json()
+    const latest = release.tag_name.replace(/^v/, '')
+    latestVersion.value = latest
+
+    const cur = appVersion.value.split('.').map(Number)
+    const lat = latest.split('.').map(Number)
+    let newer = false
+    for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
+      if ((lat[i] || 0) > (cur[i] || 0)) { newer = true; break }
+    }
+    updateAvailable.value = newer
+
+    if (newer) {
+      checkToast.value = '🆕 v' + latest + ' 可用'
+    } else {
+      checkToast.value = '✅ 已是最新版本'
+    }
+  } catch (e) {
+    checkToast.value = '⚠️ 检查失败'
+  }
+  checkingVer.value = false
+  setTimeout(() => checkToast.value = '', 3000)
+}
+
 const theme = ref(localStorage.getItem('theme') || '')
 
 const themeMap = {
