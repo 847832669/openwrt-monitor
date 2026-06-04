@@ -77,8 +77,8 @@
             <td class="px-4 py-3 text-slate-400 text-xs">{{ lease.remain }}</td>
             <td class="px-4 py-3">
               <input
-                :value="getRemark(lease.mac)"
-                @change="setRemark(lease.mac, ($event.target).value)"
+                :value="remarks[lease.mac] || ''"
+                @input="onRemarkInput(lease.mac, $event)"
                 placeholder="添加备注…"
                 class="bg-transparent border-b border-slate-700 px-1 py-0.5 text-xs text-slate-300 w-28 focus:outline-none focus:border-brand-500 placeholder-slate-600"
               />
@@ -139,12 +139,9 @@ const filteredLeases = computed(() => {
   return list
 })
 
-function getRemark(mac) {
-  return remarks.value[mac] || ''
-}
-
-function setRemark(mac, text) {
-  remarks.value[mac] = text
+function onRemarkInput(mac, event) {
+  // 直接修改 ref 内部对象，触发响应式更新
+  remarks.value[mac] = event.target.value
   localStorage.setItem('device_remarks', JSON.stringify(remarks.value))
 }
 

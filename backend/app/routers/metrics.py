@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 
 from ..database import get_db
-from ..models import DeviceModel, MetricSnapshotModel
+from ..models import DeviceModel, MetricSnapshotModel, MetricHistoryModel
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
@@ -36,26 +36,39 @@ async def get_latest_metrics(device_id: int, db: AsyncSession = Depends(get_db))
 @router.get("/history/{device_id}")
 async def get_metrics_history(
     device_id: int,
-    hours: int = Query(1, ge=1, le=24),
+    hours: int = Query(1, ge=1, le=168),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取历史快照列表（当前是 SQLite 快照模式，后续会改为 InfluxDB）"""
+    """获取历史时序数据（SQLite 内建）"""
     device = await db.get(DeviceModel, device_id)
     if not device:
         raise HTTPException(404, "设备不存在")
 
-    # 目前只有最新快照，历史数据需要 InfluxDB
-    snap = await db.execute(
-        select(MetricSnapshotModel).where(
-            MetricSnapshotModel.device_id == device_id
-        ).order_by(desc(MetricSnapshotModel.collected_at)).limit(1)
-    )
-    snap = snap.scalar_one_or_none()
-    if not snap:
-        return {"device_id": device_id, "points": []}
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
 
-    # 返回一个点（后续替换为 InfluxDB 时序数据）
+    rows = await db.execute(
+        select(MetricHistoryModel).where(
+            MetricHistoryModel.device_id == device_id,
+            MetricHistoryModel.collected_at >= cutoff,
+        ).order_by(MetricHistoryModel.collected_at.asc())
+    )
+    points = []
+    for row in rows.scalars().all():
+        points.append({
+            "t": row.collected_at.isoformat(),
+            "cpu": row.cpu,
+            "mem": row.memory,
+            "load1": row.load_1m,
+            "load5": row.load_5m,
+            "load15": row.load_15m,
+            "ct": row.conntrack,
+            "rx": row.rx_rate,
+            "tx": row.tx_rate,
+        })
+
     return {
         "device_id": device_id,
-        "points": [{"timestamp": snap.collected_at.isoformat(), "data": snap.data}],
+        "hours": hours,
+        "points": points,
+        "count": len(points),
     }

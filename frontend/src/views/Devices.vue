@@ -33,6 +33,10 @@
           <span v-if="item.uptime > 0" class="text-xs text-slate-500">
             {{ formatUptime(item.uptime) }}
           </span>
+          <button @click="editDevice(item)"
+            class="text-slate-500 hover:text-brand-400 px-2 py-1 text-sm transition-colors" title="编辑">
+            ✏️
+          </button>
           <button @click="deleteDevice(item.id)"
             class="text-slate-500 hover:text-red-400 px-2 py-1 text-sm transition-colors">
             ✕
@@ -53,7 +57,7 @@
     <div v-if="showAdd"
       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md mx-4">
-        <h3 class="text-lg font-semibold text-white mb-4">添加设备</h3>
+        <h3 class="text-lg font-semibold text-white mb-4">{{ editingDevice ? '编辑设备' : '添加设备' }}</h3>
         <div class="space-y-3">
           <div>
             <label class="text-xs text-slate-400 block mb-1">名称（可选）</label>
@@ -100,9 +104,9 @@
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-          <button @click="showAdd = false"
+          <button @click="cancelModal()"
             class="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">取消</button>
-          <button @click="addDevice"
+          <button @click="editingDevice ? saveEdit() : addDevice()"
             class="bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg text-sm transition-colors"
             :disabled="!form.host">
             添加
@@ -125,6 +129,47 @@ const form = ref({
   name: '', host: '', port: 22, username: 'root',
   auth_type: 'key', private_key_path: '~/.ssh/id_rsa', password: '',
 })
+const editingDevice = ref(null)
+
+function editDevice(item) {
+  editingDevice.value = item
+  form.value = {
+    name: item.name || '',
+    host: item.host,
+    port: item.port,
+    username: item.username,
+    auth_type: item.auth_type,
+    private_key_path: item.private_key_path || '',
+    password: '',
+  }
+  showAdd.value = true
+}
+
+function cancelModal() {
+  showAdd.value = false
+  editingDevice.value = null
+  form.value = { name: '', host: '', port: 22, username: 'root',
+    auth_type: 'key', private_key_path: '~/.ssh/id_rsa', password: '' }
+}
+
+async function saveEdit() {
+  if (!editingDevice.value) return
+  try {
+    // 不传密码（保持原密码）如果密码没修改
+    const body = { ...form.value }
+    if (!body.password) delete body.password
+    const res = await fetch(`/api/devices/${editingDevice.value.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    cancelModal()
+    await loadDevices()
+  } catch (e) {
+    alert('保存失败: ' + e.message)
+  }
+}
 
 async function loadDevices() {
   try {

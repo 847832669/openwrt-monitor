@@ -78,16 +78,28 @@
       <!-- 流量曲线 -->
       <div class="mt-6">
         <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold text-slate-300">实时网络流量 (最近 1 分钟)</h3>
-          <button @click="toggleUnit"
-            class="text-xs px-2.5 py-1 rounded-lg border transition-colors"
-            :class="unitMode === 'bits'
-              ? 'border-brand-600 bg-brand-600/20 text-brand-300'
-              : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'">
-            {{ unitMode === 'bits' ? 'b/s' : 'B/s' }}
-          </button>
+          <h3 class="text-sm font-semibold text-slate-300">
+            {{ trafficTimeRange === '0' ? '实时网络流量' : '历史网络流量' }}
+            <span class="text-xs text-slate-500 font-normal ml-1">({{ trafficTimeLabel }})</span>
+          </h3>
+          <div class="flex items-center gap-2">
+            <select v-model="trafficTimeRange" @change="loadTrafficHistory"
+              class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="0">实时</option>
+              <option value="1">近 1 小时</option>
+              <option value="6">近 6 小时</option>
+              <option value="24">近 24 小时</option>
+            </select>
+            <button @click="toggleUnit"
+              class="text-xs px-2.5 py-1 rounded-lg border transition-colors"
+              :class="unitMode === 'bits'
+                ? 'border-brand-600 bg-brand-600/20 text-brand-300'
+                : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'">
+              {{ unitMode === 'bits' ? 'b/s' : 'B/s' }}
+            </button>
+          </div>
         </div>
-        <TrafficChart :height="'280px'" :data="trafficHistory" :unit="unitMode" />
+        <TrafficChart :height="'280px'" :data="chartData" :unit="unitMode" />
       </div>
 
       <!-- 第二行：负载 + 连接 + 磁盘 -->
@@ -193,6 +205,45 @@ async function changeInterval() {
 
 function toggleUnit() {
   unitMode.value = unitMode.value === 'bits' ? 'bytes' : 'bits'
+}
+
+// 流量历史
+const trafficTimeRange = ref('0')
+const trafficHistoryData = ref({ points: [] })
+
+const trafficTimeLabel = computed(() => {
+  const labels = { '0': '实时', '1': '近1小时', '6': '近6小时', '24': '近24小时' }
+  return labels[trafficTimeRange.value] || '实时'
+})
+
+const chartData = computed(() => {
+  if (trafficTimeRange.value !== '0' && trafficHistoryData.value.points?.length) {
+    // 历史模式：用 API 返回的数据
+    const pts = trafficHistoryData.value.points
+    const step = Math.max(1, Math.floor(pts.length / 120))  // 降采样到约 120 点
+    const sampled = []
+    for (let i = 0; i < pts.length; i += step) {
+      const d = new Date(pts[i].t)
+      sampled.push({
+        time: d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0'),
+        rx: pts[i].rx,
+        tx: pts[i].tx,
+      })
+    }
+    return sampled
+  }
+  // 实时模式
+  return trafficHistory.value
+})
+
+async function loadTrafficHistory() {
+  if (!selectedDevice.value || trafficTimeRange.value === '0') return
+  try {
+    const res = await fetch(`/api/metrics/history/${selectedDevice.value}?hours=${trafficTimeRange.value}`)
+    trafficHistoryData.value = await res.json()
+  } catch (e) {
+    console.error('加载流量历史失败', e)
+  }
 }
 
 // 从 WebSocket 获取当前设备指标
@@ -309,6 +360,15 @@ onMounted(async () => {
 
 // 监听 WebSocket 数据更新流量
 watch(currentMetrics, () => {
-  updateTraffic()
+  if (trafficTimeRange.value === '0') {
+    updateTraffic()
+  }
 }, { deep: true })
+
+// 设备切换时重新加载历史流量
+watch(selectedDevice, () => {
+  if (trafficTimeRange.value !== '0') {
+    loadTrafficHistory()
+  }
+})
 </script>

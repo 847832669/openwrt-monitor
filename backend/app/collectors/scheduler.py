@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import async_session
-from ..models import DeviceModel, MetricSnapshotModel
+from ..models import DeviceModel, MetricSnapshotModel, MetricHistoryModel
+from ..alerts import evaluate as evaluate_alerts
 from .system import SystemCollector
 from .network import NetworkCollector
 from .lan import LANCollector
@@ -23,7 +24,9 @@ class CollectScheduler:
         self.interval = interval
         self._task: asyncio.Task | None = None
         self._running = False
-        self._on_metrics: list[Callable] = []  # 回调：通知 WebSocket
+        self._on_metrics: list[Callable] = []
+        # 流量速率跟踪：{device_id: (timestamp, total_rx_bytes, total_tx_bytes)}
+        self._last_traffic: dict[int, tuple] = {}
 
     def on_metrics(self, callback: Callable):
         """注册指标推送回调"""
@@ -109,6 +112,71 @@ class CollectScheduler:
                     dev.online = True
                     dev.uptime = sys_data.get("uptime_seconds", 0)
                     await session.commit()
+
+            # 计算流量速率
+            rx_rate = tx_rate = 0.0
+            traffic_key = device.id
+            if isinstance(net_data, dict) and "interfaces" in net_data:
+                ifaces = net_data["interfaces"]
+                # 找 WAN 口
+                wan = next((n for n in ["pppoe-wan","eth1"] if n in ifaces), None) or list(ifaces.keys())[0]
+                cur_rx = ifaces[wan]["rx_bytes"]
+                cur_tx = ifaces[wan]["tx_bytes"]
+                now_ts = datetime.utcnow().timestamp()
+                if traffic_key in self._last_traffic:
+                    last_ts, last_rx, last_tx = self._last_traffic[traffic_key]
+                    elapsed = now_ts - last_ts
+                    if elapsed > 0:
+                        rx_rate = max(0, (cur_rx - last_rx) / elapsed)
+                        tx_rate = max(0, (cur_tx - last_tx) / elapsed)
+                self._last_traffic[traffic_key] = (now_ts, cur_rx, cur_tx)
+
+            # 写入历史时序数据
+            try:
+                now = datetime.utcnow()
+                sys_ok = not isinstance(sys_data, dict) or "error" not in sys_data
+                if sys_ok:
+                    history = MetricHistoryModel(
+                        device_id=device.id,
+                        cpu=sys_data.get("cpu_percent", 0),
+                        memory=sys_data.get("memory_percent", 0),
+                        load_1m=sys_data.get("load_1m", 0),
+                        load_5m=sys_data.get("load_5m", 0),
+                        load_15m=sys_data.get("load_15m", 0),
+                        conntrack=net_data.get("conntrack_count", 0) if isinstance(net_data, dict) else 0,
+                        rx_rate=rx_rate,
+                        tx_rate=tx_rate,
+                        collected_at=now,
+                    )
+                    async with async_session() as session:
+                        session.add(history)
+                        await session.commit()
+            except Exception as e:
+                logger.warning(f"写入历史数据失败: {e}")
+
+            # 定时清理 7 天前的历史数据（每 100 次清理一次）
+            try:
+                import random
+                if random.random() < 0.01:  # 1% 概率执行清理
+                    async with async_session() as session:
+                        cutoff = datetime.utcnow() - __import__("datetime").timedelta(days=7)
+                        await session.execute(
+                            __import__("sqlalchemy").delete(MetricHistoryModel).where(
+                                MetricHistoryModel.collected_at < cutoff
+                            )
+                        )
+                        await session.commit()
+                        logger.info("已清理 7 天前的历史数据")
+            except Exception as e:
+                logger.warning(f"清理历史数据失败: {e}")
+
+            # 告警评估
+            try:
+                alerts = evaluate_alerts(device.id, sys_data, net_data if isinstance(net_data, dict) else {}, True)
+                for alert in alerts:
+                    await self._notify(device.id, {"type": "alert", "alert": alert})
+            except Exception as e:
+                logger.warning(f"告警评估失败: {e}")
 
             await self._notify(device.id, merged)
             return merged
