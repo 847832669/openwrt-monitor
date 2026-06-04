@@ -84,18 +84,20 @@ npm run dev
 
 ### 方法二：Docker 模板（原生 UI）
 
-1. **Docker** → **ADD CONTAINER**
-2. 在 **Template** 下拉选择 **Repository**：
+1. **Docker** → **Settings** → **Template Repositories**
+2. 在输入框粘贴：
    ```
    https://raw.githubusercontent.com/847832669/openwrt-monitor/main/unraid-template.xml
    ```
-3. 或手动填入：
-   ```
-   仓库: ghcr.io/847832669/openwrt-monitor:latest
-   端口: 8000
-   路径: /mnt/user/appdata/openwrt-monitor/data/ → /app/data
-   ```
-4. **Apply** 完成 🎉
+3. 点 **Add** → **Apply**
+4. 回到 **Docker** → **Add Container**
+5. **Template** 下拉选择 **OpenWrtMonitor**
+6. **Apply** 完成 🎉
+
+> 或者手动添加：
+> - 仓库: `ghcr.io/847832669/openwrt-monitor:latest`
+> - 端口: `8000`
+> - 路径: `/mnt/user/appdata/openwrt-monitor/data/` → `/app/data`
 
 安装后打开 `http://你的UnraidIP:8000` 即可使用。
 
