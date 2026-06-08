@@ -1,5 +1,6 @@
 """采集器基类 + SSH 连接管理"""
 import os
+import asyncio
 import asyncssh
 from typing import Optional
 from asyncio import Lock
@@ -80,10 +81,12 @@ class BaseCollector:
             self.host, self.port, self.username,
             self.auth_type, self.private_key_path, self.password,
         )
-        result = await conn.run(cmd, timeout=15)
-        if result.returncode != 0:
-            raise RuntimeError(f"Command failed [{result.returncode}]: {cmd}\n{result.stderr}")
-        return result.stdout
+        process = await conn.create_process(cmd)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+        exit_code = process.returncode
+        if exit_code != 0:
+            raise RuntimeError(f"Command failed [{exit_code}]: {cmd}\n{stderr}")
+        return stdout
 
     async def collect(self) -> dict:
         """子类实现：采集并返回指标字典"""

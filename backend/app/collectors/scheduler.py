@@ -2,10 +2,10 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 from typing import Callable
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select
 
 from ..database import async_session
 from ..models import DeviceModel, MetricSnapshotModel, MetricHistoryModel
@@ -15,6 +15,13 @@ from .network import NetworkCollector
 from .lan import LANCollector
 
 logger = logging.getLogger(__name__)
+
+
+COLLECTORS = {
+    "system": SystemCollector,
+    "network": NetworkCollector,
+    "lan": LANCollector,
+}
 
 
 class CollectScheduler:
@@ -55,36 +62,26 @@ class CollectScheduler:
                 "password": device.password or "",
             }
 
-            sys_collector = SystemCollector(**kwargs)
-            net_collector = NetworkCollector(**kwargs)
-            lan_collector = LANCollector(**kwargs)
+            collector_tasks = {
+                name: collector_cls(**kwargs).collect()
+                for name, collector_cls in COLLECTORS.items()
+            }
 
-            # 并行采集
-            sys_data, net_data, lan_data = await asyncio.gather(
-                sys_collector.collect(),
-                net_collector.collect(),
-                lan_collector.collect(),
+            collected = await asyncio.gather(
+                *collector_tasks.values(),
                 return_exceptions=True,
             )
 
-            if isinstance(sys_data, Exception):
-                logger.warning(f"系统采集失败 [{device.host}]: {sys_data}")
-                sys_data = {"error": str(sys_data)}
+            merged = {"timestamp": datetime.utcnow().isoformat()}
+            for name, data in zip(collector_tasks.keys(), collected):
+                if isinstance(data, Exception):
+                    logger.warning(f"{name} 采集失败 [{device.host}]: {data}")
+                    merged[name] = {"error": str(data)}
+                else:
+                    merged[name] = data
 
-            if isinstance(net_data, Exception):
-                logger.warning(f"网络采集失败 [{device.host}]: {net_data}")
-                net_data = {"error": str(net_data)}
-
-            if isinstance(lan_data, Exception):
-                logger.warning(f"LAN采集失败 [{device.host}]: {lan_data}")
-                lan_data = {"error": str(lan_data)}
-
-            merged = {
-                "system": sys_data,
-                "network": net_data,
-                "lan": lan_data,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
+            sys_data = merged.get("system", {})
+            net_data = merged.get("network", {})
 
             # 写快照到数据库
             async with async_session() as session:
@@ -156,12 +153,11 @@ class CollectScheduler:
 
             # 定时清理 7 天前的历史数据（每 100 次清理一次）
             try:
-                import random
                 if random.random() < 0.01:  # 1% 概率执行清理
                     async with async_session() as session:
-                        cutoff = datetime.utcnow() - __import__("datetime").timedelta(days=7)
+                        cutoff = datetime.utcnow() - timedelta(days=7)
                         await session.execute(
-                            __import__("sqlalchemy").delete(MetricHistoryModel).where(
+                            delete(MetricHistoryModel).where(
                                 MetricHistoryModel.collected_at < cutoff
                             )
                         )

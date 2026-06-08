@@ -38,7 +38,7 @@
 
     <!-- 指标卡片行 -->
     <div v-if="currentMetrics && devices.length > 0">
-      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <MetricCard
           title="CPU"
           :value="cpuValue"
@@ -73,6 +73,31 @@
           icon="⬇️"
           :subtitle="wanName"
           :progress="0" />
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+        <div class="lg:col-span-2 min-w-0 min-h-[7rem] bg-slate-900/80 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <span class="min-w-0 text-xs text-slate-400 font-medium uppercase tracking-wider truncate">网络地址</span>
+            <span class="shrink-0 text-lg">🌐</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="min-w-0">
+              <div class="text-[11px] text-slate-500 mb-0.5">外网 IP · {{ wanName }}</div>
+              <div class="metric-value font-mono text-[1.35rem] leading-tight font-bold text-white break-all">{{ publicIp }}</div>
+            </div>
+            <div class="min-w-0 sm:border-l sm:border-slate-800 sm:pl-4 border-t border-slate-800 pt-3 sm:border-t-0 sm:pt-0">
+              <div class="text-[11px] text-slate-500 mb-0.5">内网 IP</div>
+              <div class="metric-value font-mono text-[1.35rem] leading-tight font-bold text-white break-all">{{ lanIp }}</div>
+            </div>
+          </div>
+        </div>
+        <MetricCard
+          title="在线设备"
+          :value="onlineDeviceCount"
+          suffix=" 台"
+          icon="🖥️"
+          :subtitle="totalDeviceCount > 0 ? `共 ${totalDeviceCount} 台` : ''" />
       </div>
 
       <!-- 流量曲线 -->
@@ -110,15 +135,15 @@
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
               <span class="text-slate-400">1 分钟</span>
-              <span class="text-white font-mono font-bold">{{ sysLoad1 }}</span>
+              <span class="numeric-value text-white font-bold">{{ sysLoad1 }}</span>
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-slate-400">5 分钟</span>
-              <span class="text-white font-mono font-bold">{{ sysLoad5 }}</span>
+              <span class="numeric-value text-white font-bold">{{ sysLoad5 }}</span>
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-slate-400">15 分钟</span>
-              <span class="text-white font-mono font-bold">{{ sysLoad15 }}</span>
+              <span class="numeric-value text-white font-bold">{{ sysLoad15 }}</span>
             </div>
           </div>
         </div>
@@ -129,15 +154,19 @@
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
               <span class="text-slate-400">当前连接</span>
-              <span class="text-white font-mono font-bold">{{ conntrackCount }}</span>
+              <span class="numeric-value text-white font-bold">{{ conntrackCount }}</span>
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-slate-400">最大连接</span>
-              <span class="text-white font-mono font-bold">{{ conntrackMax }}</span>
+              <span class="numeric-value text-white font-bold">{{ conntrackMax }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-500">使用率</span>
+              <span class="numeric-value text-slate-300">{{ conntrackPercentText }}</span>
             </div>
             <div class="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
               <div class="h-full rounded-full transition-all duration-500"
-                :style="{ width: conntrackPercent + '%' }"
+                :style="{ width: conntrackBarWidth }"
                 :class="conntrackPercent > 80 ? 'bg-red-400' : conntrackPercent > 50 ? 'bg-amber-400' : 'bg-green-400'">
               </div>
             </div>
@@ -284,6 +313,7 @@ const tempValue = computed(() => {
 
 const sysRaw = computed(() => currentMetrics.value?.system)
 const netRaw = computed(() => currentMetrics.value?.network)
+const lanRaw = computed(() => currentMetrics.value?.lan)
 
 const sysLoad1 = computed(() => sysRaw.value?.load_1m?.toFixed(2) ?? '-')
 const sysLoad5 = computed(() => sysRaw.value?.load_5m?.toFixed(2) ?? '-')
@@ -292,6 +322,17 @@ const sysLoad15 = computed(() => sysRaw.value?.load_15m?.toFixed(2) ?? '-')
 const conntrackCount = computed(() => netRaw.value?.conntrack_count ?? 0)
 const conntrackMax = computed(() => netRaw.value?.conntrack_max ?? 65536)
 const conntrackPercent = computed(() => netRaw.value?.conntrack_percent ?? 0)
+const conntrackPercentText = computed(() => `${conntrackPercent.value.toFixed(1)}%`)
+const conntrackBarWidth = computed(() => {
+  const percent = Math.min(Math.max(conntrackPercent.value, 0), 100)
+  if (percent === 0) return '0%'
+  return `${Math.max(percent, 4)}%`
+})
+
+const publicIp = computed(() => netRaw.value?.public_ip || '-')
+const lanIp = computed(() => devices.value.find(d => d.id === selectedDevice.value)?.host || '-')
+const onlineDeviceCount = computed(() => lanRaw.value?.online_count ?? 0)
+const totalDeviceCount = computed(() => lanRaw.value?.total_count ?? 0)
 
 const diskUsage = computed(() => sysRaw.value?.disk_usage ?? [])
 

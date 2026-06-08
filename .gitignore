@@ -3,11 +3,14 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+venv/
+venv.bak-*/
 *.egg-info/
 
 # Node
 node_modules/
 dist/
+backend/static/
 
 # Data
 data/

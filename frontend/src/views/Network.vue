@@ -30,19 +30,19 @@
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span class="text-slate-500 block text-xs">下行</span>
-              <span class="text-cyan-400 font-mono font-bold">{{ fmtBytes(stats.rx_bytes) }}</span>
+              <span class="numeric-value text-cyan-400 font-bold">{{ fmtBytes(stats.rx_bytes) }}</span>
             </div>
             <div>
               <span class="text-slate-500 block text-xs">上行</span>
-              <span class="text-amber-400 font-mono font-bold">{{ fmtBytes(stats.tx_bytes) }}</span>
+              <span class="numeric-value text-amber-400 font-bold">{{ fmtBytes(stats.tx_bytes) }}</span>
             </div>
             <div>
               <span class="text-slate-500 block text-xs">丢包 (RX/TX)</span>
-              <span class="text-slate-300 font-mono">{{ stats.rx_errors }}/{{ stats.tx_errors }}</span>
+              <span class="numeric-value text-slate-300">{{ stats.rx_errors }}/{{ stats.tx_errors }}</span>
             </div>
             <div>
               <span class="text-slate-500 block text-xs">丢包 (RX/TX)</span>
-              <span class="text-slate-300 font-mono">{{ stats.rx_dropped }}/{{ stats.tx_dropped }}</span>
+              <span class="numeric-value text-slate-300">{{ stats.rx_dropped }}/{{ stats.tx_dropped }}</span>
             </div>
           </div>
         </div>
@@ -67,7 +67,7 @@
                 :style="{ width: (s.count / maxTcp * 100) + '%' }"
                 :class="s.state === 'ESTAB' ? 'bg-green-400' : 'bg-slate-600'"></div>
             </div>
-            <span class="text-white font-mono text-right w-16">{{ s.count }}</span>
+            <span class="numeric-value text-white text-right w-16">{{ s.count }}</span>
           </div>
         </div>
       </div>

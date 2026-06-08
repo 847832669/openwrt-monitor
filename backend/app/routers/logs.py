@@ -1,10 +1,9 @@
 """日志 API — 从 OpenWrt 读取系统日志"""
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from ..collectors.base import ssh_pool
-from ..database import get_db, async_session
+from ..database import async_session
 from ..models import DeviceModel
+import shlex
 import asyncio
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
@@ -32,13 +31,13 @@ async def get_logs(
             password=device.password or "",
         )
 
-        cmd = f"logread -l {lines}"
+        cmd = f"logread -l {lines} 2>/dev/null || dmesg 2>/dev/null | tail -n {lines}"
         if filter_keyword:
-            cmd += f" | grep -i '{filter_keyword.replace(chr(39), chr(39)+'\\\\'+chr(39))}'"
-        cmd += " 2>&1 || echo 'logread not available, trying dmesg...'; dmesg 2>/dev/null | tail -{lines}"
+            cmd = f"({cmd}) | grep -i -- {shlex.quote(filter_keyword)} || true"
 
-        result = await conn.run(cmd, timeout=15)
-        raw = result.stdout or ""
+        process = await conn.create_process(cmd)
+        stdout, _stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+        raw = stdout or ""
 
         # 解析日志行
         entries = []

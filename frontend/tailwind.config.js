@@ -3,6 +3,27 @@ export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          '"PingFang SC"',
+          '"Microsoft YaHei"',
+          '"Noto Sans CJK SC"',
+          'sans-serif',
+        ],
+        mono: [
+          '"JetBrains Mono"',
+          '"SFMono-Regular"',
+          'Consolas',
+          '"Liberation Mono"',
+          'monospace',
+        ],
+      },
       colors: {
         brand: {
           50: '#eef2ff',

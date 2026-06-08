@@ -61,7 +61,7 @@
               class="flex items-center gap-2 text-xs py-1 hover:bg-slate-800/40 rounded px-1">
               <span class="text-slate-500 w-5">{{ i+1 }}</span>
               <span class="text-white font-mono flex-1 truncate">{{ p.name }}</span>
-              <span class="text-cyan-400 font-mono w-12 text-right">{{ p.cpu }}%</span>
+              <span class="numeric-value text-cyan-400 w-12 text-right">{{ p.cpu }}%</span>
             </div>
           </div>
         </div>
@@ -72,7 +72,7 @@
               class="flex items-center gap-2 text-xs py-1 hover:bg-slate-800/40 rounded px-1">
               <span class="text-slate-500 w-5">{{ i+1 }}</span>
               <span class="text-white font-mono flex-1 truncate">{{ p.name }}</span>
-              <span class="text-amber-400 font-mono w-12 text-right">{{ p.mem }}%</span>
+              <span class="numeric-value text-amber-400 w-12 text-right">{{ p.mem }}%</span>
             </div>
           </div>
         </div>

@@ -50,6 +50,17 @@ docker compose up -d
 
 浏览器打开 `http://你内网IP:8000` 即可访问。
 
+也可以直接使用 GitHub Actions 自动发布的镜像：
+
+```bash
+docker run -d \
+  --name openwrt-monitor \
+  -p 8000:8000 \
+  -v openwrt-monitor-data:/app/data \
+  --restart unless-stopped \
+  ghcr.io/847832669/openwrt-monitor:latest
+```
+
 ### 方式二：开发模式
 
 **后端：**
@@ -143,8 +154,8 @@ openwrt-monitor/
 │   │       ├── devices.py        # 设备管理 API
 │   │       ├── metrics.py        # 指标数据 API
 │   │       ├── ws.py             # WebSocket 推送
-│   │       └── settings.py       # 系统设置 API
-│   ├── Dockerfile
+│   │       ├── settings.py       # 系统设置 API
+│   │       └── logs.py           # 系统日志 API
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -162,13 +173,24 @@ openwrt-monitor/
 │   │   └── composables/
 │   │       ├── useApi.js         # HTTP API 封装
 │   │       └── useWebSocket.js   # WebSocket 连接
-│   ├── Dockerfile
 │   └── package.json
 ├── docs/
 │   └── REQUIREMENTS.md
+├── Dockerfile                    # 前后端一体化多阶段镜像
 ├── docker-compose.yml
 └── README.md
 ```
+
+## 📦 自动打包
+
+推送到 `main` 或推送 `v*` 标签时，GitHub Actions 会自动构建 Docker 镜像并推送到：
+
+```text
+ghcr.io/847832669/openwrt-monitor:latest
+ghcr.io/847832669/openwrt-monitor:<tag 或 sha>
+```
+
+镜像构建走根目录 `Dockerfile`：先构建 Vue 前端，再把静态文件复制进 FastAPI 镜像，最终一个容器同时提供 API、WebSocket 和前端页面。
 
 ## ⚙️ 采集间隔配置
 

@@ -1,4 +1,5 @@
 """网络指标采集器 — 接口流量 / conntrack / TCP 状态"""
+
 from .base import BaseCollector
 
 
@@ -34,6 +35,34 @@ cat /proc/net/tcp 2>/dev/null | tail -n +2 | awk '{
 }' | sort | uniq -c | sort -rn 2>/dev/null || true
 echo "---WIFI_IFACES---"
 iwinfo 2>/dev/null | grep -E '^[a-z0-9]+' | awk '{print $1}' | sort -u || true
+echo "---PUBLIC_IP---"
+get_openwrt_iface_ip() {
+  local logical="$1"
+  local status=""
+
+  status="$(ubus call network.interface."$logical" status 2>/dev/null || ifstatus "$logical" 2>/dev/null || true)"
+  if [ -n "$status" ] && command -v jsonfilter >/dev/null 2>&1; then
+    printf '%s\n' "$status" | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null | head -n1
+  elif [ -n "$status" ]; then
+    printf '%s\n' "$status" | awk '
+      /"ipv4-address"/ { in_ipv4=1; next }
+      in_ipv4 && /"address"/ {
+        gsub(/[",]/, "", $2)
+        print $2
+        exit
+      }
+    '
+  fi
+}
+
+public_ip="$(get_openwrt_iface_ip wan)"
+if [ -z "$public_ip" ]; then
+  wan_dev="$(ip -4 route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+  if [ -n "$wan_dev" ]; then
+    public_ip="$(ip -4 addr show dev "$wan_dev" scope global 2>/dev/null | awk '/inet / {sub(/\/.*/, "", $2); print $2; exit}')"
+  fi
+fi
+printf '%s\n' "$public_ip"
 """
         raw = await self._run_cmd(script)
         return self._parse(raw)
@@ -46,6 +75,7 @@ iwinfo 2>/dev/null | grep -E '^[a-z0-9]+' | awk '{print $1}' | sort -u || true
             "conntrack_percent": 0.0,
             "tcp_states": {},
             "conntrack_protocols": {},
+            "public_ip": "",
         }
 
         lines = raw.split("\n")
@@ -70,6 +100,9 @@ iwinfo 2>/dev/null | grep -E '^[a-z0-9]+' | awk '{print $1}' | sort -u || true
                 continue
             elif line == "---WIFI_IFACES---":
                 section = "wifi"
+                continue
+            elif line == "---PUBLIC_IP---":
+                section = "public_ip"
                 continue
 
             if section == "netdev":
@@ -117,6 +150,11 @@ iwinfo 2>/dev/null | grep -E '^[a-z0-9]+' | awk '{print $1}' | sort -u || true
             elif section == "nf":
                 if line and line != "N/A" and line.isdigit():
                     result["conntrack_max"] = int(line)
+
+            elif section == "public_ip":
+                if line and len(line) <= 64:
+                    result["public_ip"] = line
+                    section = None
 
         if result["conntrack_max"] > 0:
             result["conntrack_percent"] = round(
