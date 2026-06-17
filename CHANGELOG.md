@@ -1,5 +1,11 @@
 # 📋 更新日志
 
+## v0.4.1 (2026-06-18)
+
+### 🔧 其他
+- **本地发布流程**：新增 `scripts/release.sh`，自动同步版本号、生成发布提交、创建标签并推送到 GitHub
+- **GitHub Release**：新增标签触发的 Release workflow，推送 `v*` 标签后自动生成 GitHub Release
+
 ## v0.4.0 (2026-06-09)
 
 ### ✨ 新功能

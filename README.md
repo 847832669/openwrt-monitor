@@ -192,6 +192,16 @@ ghcr.io/847832669/openwrt-monitor:<tag 或 sha>
 
 镜像构建走根目录 `Dockerfile`：先构建 Vue 前端，再把静态文件复制进 FastAPI 镜像，最终一个容器同时提供 API、WebSocket 和前端页面。
 
+### 发布新版本
+
+本地修改提交后，在 `main` 分支执行：
+
+```bash
+scripts/release.sh 0.4.1 "简短描述本次发布内容"
+```
+
+脚本会同步更新前后端版本号、补充 `CHANGELOG.md`、创建发布提交和 `vX.Y.Z` 标签，并推送到 GitHub。推送标签后会自动构建 Docker 镜像并创建 GitHub Release。
+
 ## ⚙️ 采集间隔配置
 
 仪表盘左上角下拉菜单可选：
