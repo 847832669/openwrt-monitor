@@ -265,6 +265,7 @@ const latestVersion = ref(null)
 const updateAvailable = ref(false)
 const checkingVer = ref(false)
 const checkToast = ref('')
+const CHANGELOG_API_URL = 'https://api.github.com/repos/847832669/openwrt-monitor/contents/CHANGELOG.md?ref=main'
 const RAW_PACKAGE_URL = 'https://raw.githubusercontent.com/847832669/openwrt-monitor/main/frontend/package.json'
 const RAW_CHANGELOG_URL = 'https://raw.githubusercontent.com/847832669/openwrt-monitor/main/CHANGELOG.md'
 const TAGS_API_URL = 'https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5'
@@ -483,6 +484,12 @@ function parseReleaseMarkdown(release) {
   }
 }
 
+function decodeBase64Content(value) {
+  const binary = atob(String(value || '').replace(/\s/g, ''))
+  const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
 function formatSyncTime() {
   const now = new Date()
   return now.getHours().toString().padStart(2, '0') + ':' +
@@ -495,29 +502,42 @@ async function loadRemoteChangelog(force = false) {
   changelogError.value = ''
 
   try {
-    const rawRes = await fetch(`${RAW_CHANGELOG_URL}?t=${Date.now()}`, { cache: 'no-store' })
-    if (!rawRes.ok) throw new Error(`GitHub CHANGELOG 读取失败: ${rawRes.status}`)
-    const parsed = parseChangelogMarkdown(await rawRes.text())
+    const apiRes = await fetch(`${CHANGELOG_API_URL}&t=${Date.now()}`, { cache: 'no-store' })
+    if (!apiRes.ok) throw new Error(`GitHub CHANGELOG API 读取失败: ${apiRes.status}`)
+    const file = await apiRes.json()
+    const parsed = parseChangelogMarkdown(decodeBase64Content(file.content))
     remoteChangelog.value = {
       ...parsed,
       sourceLabel: '来源：GitHub CHANGELOG.md',
       syncedAt: formatSyncTime(),
       url: GITHUB_CHANGELOG_URL,
     }
-  } catch (rawError) {
+  } catch (apiError) {
     try {
-      const releaseRes = await fetch(RELEASE_API_URL, { cache: 'no-store' })
-      if (!releaseRes.ok) throw new Error(`GitHub Release 读取失败: ${releaseRes.status}`)
-      const release = await releaseRes.json()
-      const parsed = parseReleaseMarkdown(release)
+      const rawRes = await fetch(`${RAW_CHANGELOG_URL}?t=${Date.now()}`, { cache: 'no-store' })
+      if (!rawRes.ok) throw new Error(`GitHub raw CHANGELOG 读取失败: ${rawRes.status}`)
+      const parsed = parseChangelogMarkdown(await rawRes.text())
       remoteChangelog.value = {
         ...parsed,
-        sourceLabel: '来源：GitHub 最新 Release',
+        sourceLabel: '来源：GitHub raw CHANGELOG.md',
         syncedAt: formatSyncTime(),
-        url: release.html_url || GITHUB_RELEASES_URL,
+        url: GITHUB_CHANGELOG_URL,
       }
-    } catch (releaseError) {
-      changelogError.value = rawError?.message || releaseError?.message || '请稍后重试'
+    } catch (rawError) {
+      try {
+        const releaseRes = await fetch(RELEASE_API_URL, { cache: 'no-store' })
+        if (!releaseRes.ok) throw new Error(`GitHub Release 读取失败: ${releaseRes.status}`)
+        const release = await releaseRes.json()
+        const parsed = parseReleaseMarkdown(release)
+        remoteChangelog.value = {
+          ...parsed,
+          sourceLabel: '来源：GitHub 最新 Release',
+          syncedAt: formatSyncTime(),
+          url: release.html_url || GITHUB_RELEASES_URL,
+        }
+      } catch (releaseError) {
+        changelogError.value = apiError?.message || rawError?.message || releaseError?.message || '请稍后重试'
+      }
     }
   } finally {
     changelogLoading.value = false
