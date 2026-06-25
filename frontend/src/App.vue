@@ -57,9 +57,40 @@
         </div>
         <div class="flex items-center justify-between text-[10px]">
           <span class="text-slate-600">{{ themeMap[theme].label }}</span>
-          <button @click="checkUpdate" class="text-slate-600 hover:text-brand-300 transition-colors" title="点击检查更新">
-            v{{ appVersion }}{{ checkingVer ? ' 🔍' : '' }}
-          </button>
+          <div class="relative"
+            @mouseenter="showChangelog = true"
+            @mouseleave="showChangelog = false"
+            @focusin="showChangelog = true"
+            @focusout="showChangelog = false">
+            <button @click="checkUpdate"
+              class="text-slate-600 hover:text-brand-300 transition-colors"
+              title="点击检查更新">
+              v{{ appVersion }}{{ checkingVer ? ' 🔍' : '' }}
+            </button>
+            <div v-if="showChangelog"
+              class="absolute bottom-full right-0 z-50 mb-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-700 bg-slate-950/95 p-3 text-left text-xs shadow-2xl backdrop-blur">
+              <div class="flex items-center justify-between gap-3">
+                <div class="font-semibold text-white">v{{ changelog.version }} 更新日志</div>
+                <a href="https://github.com/847832669/openwrt-monitor/releases" target="_blank"
+                  class="shrink-0 text-[11px] text-brand-300 hover:underline">
+                  Releases
+                </a>
+              </div>
+              <div class="mt-2 max-h-72 overflow-auto space-y-3 pr-1">
+                <div v-for="section in changelog.sections" :key="section.title">
+                  <div class="mb-1 font-semibold text-slate-300">{{ section.title }}</div>
+                  <ul class="space-y-1 text-slate-400">
+                    <li v-for="item in section.items" :key="item" class="leading-5">
+                      {{ item }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="mt-2 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
+                点击版本号检查远端最新版本
+              </div>
+            </div>
+          </div>
         </div>
         <div v-if="updateAvailable"
           class="bg-brand-600/20 border border-brand-700/30 rounded-lg px-2 py-1 text-center">
@@ -165,11 +196,45 @@ const sidebarOpen = ref(false)
 const showAlerts = ref(false)
 const alertList = ref([])
 const securityInfo = ref(null)
-const appVersion = ref('0.4.1')
+const appVersion = ref('0.4.2')
 const latestVersion = ref(null)
 const updateAvailable = ref(false)
 const checkingVer = ref(false)
 const checkToast = ref('')
+const showChangelog = ref(false)
+const RAW_PACKAGE_URL = 'https://raw.githubusercontent.com/847832669/openwrt-monitor/main/frontend/package.json'
+const TAGS_API_URL = 'https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5'
+const changelog = {
+  version: '0.4.2',
+  sections: [
+    {
+      title: '✨ 新功能',
+      items: [
+        '初始化向导、设备详情页和设备识别增强',
+        '品牌/设备图标、自定义图标和重要设备标记',
+        '网络分析页新增终端流量排行',
+        '管理员登录、SSH 密码加密、备份恢复和历史数据维护',
+      ],
+    },
+    {
+      title: '🐛 修复',
+      items: [
+        '初始化向导入口逻辑调整',
+        '仪表盘模块对齐问题修复',
+        '设备密码留空编辑不再覆盖原密码',
+        '版本检查避开 GitHub API 限流',
+      ],
+    },
+    {
+      title: '🎨 优化',
+      items: [
+        '响应式布局适配桌面、4K、Pad 和手机',
+        '路由、ECharts 和图标资源拆分加载',
+        '设备图标增加底色并压缩 SVG 资源',
+      ],
+    },
+  ],
+}
 const displayAlerts = computed(() => {
   const seen = new Set()
   return [...wsAlerts.value, ...alertList.value]
@@ -186,49 +251,82 @@ const securityWarning = computed(() => {
   return Boolean(info && !info.auth_disabled && (info.default_secret || info.default_admin_password))
 })
 
+function normalizeVersion(value) {
+  return String(value || '').trim().replace(/^v/i, '')
+}
+
+function compareVersions(current, latest) {
+  const cur = normalizeVersion(current).split('.').map(Number)
+  const lat = normalizeVersion(latest).split('.').map(Number)
+  for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
+    if ((lat[i] || 0) > (cur[i] || 0)) return 1
+    if ((lat[i] || 0) < (cur[i] || 0)) return -1
+  }
+  return 0
+}
+
+async function loadLocalVersion() {
+  const res = await fetch('/api/version', { cache: 'no-store' })
+  if (!res.ok) throw new Error(`本地版本读取失败: ${res.status}`)
+  const data = await res.json()
+  appVersion.value = normalizeVersion(data.version)
+  return appVersion.value
+}
+
+async function loadLatestVersion() {
+  try {
+    const rawRes = await fetch(`${RAW_PACKAGE_URL}?t=${Date.now()}`, { cache: 'no-store' })
+    if (rawRes.ok) {
+      const pkg = await rawRes.json()
+      const version = normalizeVersion(pkg.version)
+      if (version) return version
+    }
+  } catch (e) {
+    // raw 源不可达时再用 GitHub API 兜底。
+  }
+
+  const tagsRes = await fetch(TAGS_API_URL, { cache: 'no-store' })
+  if (!tagsRes.ok) throw new Error(`远端版本读取失败: ${tagsRes.status}`)
+  const tags = await tagsRes.json()
+  const tag = tags.map(t => t.name).find(t => /^v\d+\.\d+\.\d+$/.test(t))
+  if (!tag) throw new Error('未找到版本标签')
+  return normalizeVersion(tag)
+}
+
+async function refreshVersionState() {
+  const [current, latest] = await Promise.all([
+    loadLocalVersion(),
+    loadLatestVersion(),
+  ])
+  latestVersion.value = latest
+  updateAvailable.value = compareVersions(current, latest) > 0
+}
+
 async function checkUpdate() {
   checkingVer.value = true
   try {
-    // 先获取本地版本
-    const verRes = await fetch('/api/version')
-    const verData = await verRes.json()
-    appVersion.value = verData.version
-
-    // 查 GitHub 最新 release
-    const ghRes = await fetch('https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5')
-    if (!ghRes.ok) {
-      checkToast.value = '无法检查更新'
-      setTimeout(() => checkToast.value = '', 2000)
-      return
-    }
-    const tags = await ghRes.json()
-    const verTags = tags.map(t => t.name).filter(t => t.startsWith('v'))
-    if (!verTags.length) {
-      checkToast.value = '未找到版本信息'
-      setTimeout(() => checkToast.value = '', 2000)
-      return
-    }
-    const latest = verTags[0].replace(/^v/, '')
-    latestVersion.value = latest
-
-    const cur = appVersion.value.split('.').map(Number)
-    const lat = latest.split('.').map(Number)
-    let newer = false
-    for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
-      if ((lat[i] || 0) > (cur[i] || 0)) { newer = true; break }
-    }
-    updateAvailable.value = newer
-
-    if (newer) {
-      checkToast.value = '🆕 v' + latest + ' 可用'
-    } else {
-      checkToast.value = '✅ 已是最新版本'
-    }
+    await refreshVersionState()
+    checkToast.value = updateAvailable.value
+      ? '🆕 v' + latestVersion.value + ' 可用'
+      : '✅ 已是最新版本'
   } catch (e) {
-    checkToast.value = '⚠️ 检查失败'
+    checkToast.value = '⚠️ 无法连接版本源'
+  } finally {
+    checkingVer.value = false
+    setTimeout(() => checkToast.value = '', 3000)
   }
-  checkingVer.value = false
-  setTimeout(() => checkToast.value = '', 3000)
+}
+
+async function prefetchLatestVersion() {
+  try {
+    await refreshVersionState()
+  } catch (e) {
+    try {
+      await loadLocalVersion()
+    } catch (err) {
+      // 忽略启动时版本读取失败，点击检查更新时再提示。
+    }
+  }
 }
 
 const theme = ref(localStorage.getItem('theme') || '')
@@ -287,24 +385,6 @@ onMounted(() => {
   if (isLoginRoute.value) return
   fetch('/api/alerts').then(r => r.json()).then(d => { alertList.value = d.alerts || [] }).catch(() => {})
   requestJson('/settings/security').then(d => { securityInfo.value = d }).catch(() => {})
-  // 版本检查
-  fetch('/api/version').then(r => r.json()).then(v => { appVersion.value = v.version }).catch(() => {})
-  fetch('https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5')
-    .then(r => r.ok ? r.json() : null).then(tags => {
-      if (tags && tags.length) {
-        // 找最新的 v* 标签
-        const verTags = tags.map(t => t.name).filter(t => t.startsWith('v'))
-        if (verTags.length) {
-          const latest = verTags[0].replace(/^v/, '')
-          latestVersion.value = latest
-          const cur = appVersion.value.split('.').map(Number)
-          const lat = latest.split('.').map(Number)
-          updateAvailable.value = false
-          for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
-            if ((lat[i] || 0) > (cur[i] || 0)) { updateAvailable.value = true; break }
-          }
-        }
-      }
-    }).catch(() => {})
+  prefetchLatestVersion()
 })
 </script>
