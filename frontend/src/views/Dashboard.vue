@@ -1,224 +1,512 @@
 <template>
-  <div class="p-3 lg:p-6 space-y-6 max-w-7xl mx-auto">
-    <!-- 页面标题 -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="text-xl font-bold text-white">仪表盘</h2>
-        <p class="text-sm text-slate-400 mt-0.5">实时监控 · 数据 {{ interval }}s 刷新</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <select v-model="interval" @change="changeInterval"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
-          <option value="1">1s</option>
-          <option value="3">3s</option>
-          <option value="5">5s</option>
-          <option value="10">10s</option>
-        </select>
-        <select v-model="selectedDevice"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
-          <option value="">选择设备…</option>
-          <option v-for="d in devices" :key="d.id" :value="d.id">
-            {{ d.name || d.host }}
-          </option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 无设备提示 -->
-    <div v-if="devices.length === 0"
-      class="bg-slate-900/60 border border-dashed border-slate-700 rounded-xl p-12 text-center">
-      <div class="text-5xl mb-4">📡</div>
-      <h3 class="text-lg font-semibold text-slate-300 mb-2">还没有添加设备</h3>
-      <p class="text-sm text-slate-500 mb-4">先去「设备管理」添加你的 OpenWrt 路由器</p>
-      <router-link to="/devices"
-        class="inline-block bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg text-sm transition-colors">
-        + 添加设备
-      </router-link>
-    </div>
-
-    <!-- 指标卡片行 -->
-    <div v-if="currentMetrics && devices.length > 0">
-      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <MetricCard
-          title="CPU"
-          :value="cpuValue"
-          suffix="%"
-          icon="⚡"
-          :progress="cpuValue"
-          :glow="cpuValue > 80" />
-        <MetricCard
-          title="内存"
-          :value="memValue"
-          suffix="%"
-          icon="🧠"
-          :progress="memValue" />
-        <MetricCard
-          title="温度"
-          :value="tempValue"
-          suffix="°C"
-          icon="🌡️"
-          :progress="tempValue > 50 ? (tempValue - 50) * 2 : 0"
-          :glow="tempValue > 70" />
-        <MetricCard
-          title="上行"
-          :value="txRate"
-          suffix="/s"
-          icon="⬆️"
-          :subtitle="wanName"
-          :progress="0" />
-        <MetricCard
-          title="下行"
-          :value="rxRate"
-          suffix="/s"
-          icon="⬇️"
-          :subtitle="wanName"
-          :progress="0" />
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-        <div class="lg:col-span-2 min-w-0 min-h-[7rem] bg-slate-900/80 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
-          <div class="flex items-start justify-between gap-2 mb-3">
-            <span class="min-w-0 text-xs text-slate-400 font-medium uppercase tracking-wider truncate">网络地址</span>
-            <span class="shrink-0 text-lg">🌐</span>
+  <div class="page-container page-container-wide space-y-5">
+    <section class="app-panel rounded-lg p-4 lg:p-5">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="status-pill text-xs text-green-400">
+              <span class="dot-online"></span>
+              实时监控
+            </span>
+            <span class="status-pill text-xs text-slate-400">{{ interval }}s 刷新</span>
+            <span v-if="probeError" class="status-pill text-xs text-amber-400">画像读取失败</span>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="min-w-0">
-              <div class="text-[11px] text-slate-500 mb-0.5">外网 IP · {{ wanName }}</div>
-              <div class="metric-value font-mono text-[1.35rem] leading-tight font-bold text-white break-all">{{ publicIp }}</div>
-            </div>
-            <div class="min-w-0 sm:border-l sm:border-slate-800 sm:pl-4 border-t border-slate-800 pt-3 sm:border-t-0 sm:pt-0">
-              <div class="text-[11px] text-slate-500 mb-0.5">内网 IP</div>
-              <div class="metric-value font-mono text-[1.35rem] leading-tight font-bold text-white break-all">{{ lanIp }}</div>
+          <div class="mt-3 flex items-center gap-3">
+            <span class="grid place-items-center w-11 h-11 rounded-lg bg-slate-800/50 border border-slate-800 text-2xl">
+              {{ selectedDeviceIcon }}
+            </span>
+            <div>
+              <h2 class="text-2xl font-bold text-white">仪表盘</h2>
+              <p class="text-sm text-slate-400 mt-0.5">{{ selectedDeviceName }} · {{ hostname }}</p>
             </div>
           </div>
         </div>
-        <MetricCard
-          title="在线设备"
-          :value="onlineDeviceCount"
-          suffix=" 台"
-          icon="🖥️"
-          :subtitle="totalDeviceCount > 0 ? `共 ${totalDeviceCount} 台` : ''" />
-      </div>
-
-      <!-- 流量曲线 -->
-      <div class="mt-6">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold text-slate-300">
-            {{ trafficTimeRange === '0' ? '实时网络流量' : '历史网络流量' }}
-            <span class="text-xs text-slate-500 font-normal ml-1">({{ trafficTimeLabel }})</span>
-          </h3>
-          <div class="flex items-center gap-2">
-            <select v-model="trafficTimeRange" @change="loadTrafficHistory"
-              class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
-              <option value="0">实时</option>
-              <option value="1">近 1 小时</option>
-              <option value="6">近 6 小时</option>
-              <option value="24">近 24 小时</option>
-            </select>
-            <button @click="toggleUnit"
-              class="text-xs px-2.5 py-1 rounded-lg border transition-colors"
-              :class="unitMode === 'bits'
-                ? 'border-brand-600 bg-brand-600/20 text-brand-300'
-                : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'">
-              {{ unitMode === 'bits' ? 'b/s' : 'B/s' }}
-            </button>
-          </div>
-        </div>
-        <TrafficChart :height="'280px'" :data="chartData" :unit="unitMode" />
-      </div>
-
-      <!-- 第二行：负载 + 连接 + 磁盘 -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-        <!-- 系统负载 -->
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-          <h3 class="text-sm font-semibold text-slate-300 mb-3">📈 系统负载</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-400">1 分钟</span>
-              <span class="numeric-value text-white font-bold">{{ sysLoad1 }}</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-400">5 分钟</span>
-              <span class="numeric-value text-white font-bold">{{ sysLoad5 }}</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-400">15 分钟</span>
-              <span class="numeric-value text-white font-bold">{{ sysLoad15 }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 连接跟踪 -->
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-          <h3 class="text-sm font-semibold text-slate-300 mb-3">🔗 连接跟踪</h3>
-          <div class="space-y-2">
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-400">当前连接</span>
-              <span class="numeric-value text-white font-bold">{{ conntrackCount }}</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-400">最大连接</span>
-              <span class="numeric-value text-white font-bold">{{ conntrackMax }}</span>
-            </div>
-            <div class="flex justify-between text-xs">
-              <span class="text-slate-500">使用率</span>
-              <span class="numeric-value text-slate-300">{{ conntrackPercentText }}</span>
-            </div>
-            <div class="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full rounded-full transition-all duration-500"
-                :style="{ width: conntrackBarWidth }"
-                :class="conntrackPercent > 80 ? 'bg-red-400' : conntrackPercent > 50 ? 'bg-amber-400' : 'bg-green-400'">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 磁盘 -->
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-          <h3 class="text-sm font-semibold text-slate-300 mb-3">💾 磁盘使用</h3>
-          <div class="space-y-3" v-if="diskUsage.length">
-            <div v-for="disk in diskUsage" :key="disk.mount" class="space-y-1">
-              <div class="flex justify-between text-xs">
-                <span class="text-slate-400">{{ disk.mount }}</span>
-                <span class="text-slate-300">{{ fmtDiskSize(disk.used_gb) }} / {{ fmtDiskSize(disk.total_gb) }}</span>
-              </div>
-              <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500"
-                  :style="{ width: disk.percent + '%' }"
-                  :class="disk.percent > 80 ? 'bg-red-400' : disk.percent > 50 ? 'bg-amber-400' : 'bg-green-400'">
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="text-xs text-slate-500">暂无数据</div>
+        <div class="grid grid-cols-2 sm:flex sm:items-center gap-2">
+          <select v-model="interval" @change="changeInterval"
+            class="app-control px-2.5 text-sm text-slate-200">
+            <option value="1">1s</option>
+            <option value="3">3s</option>
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+          </select>
+          <select v-model="selectedDevice"
+            class="app-control min-w-0 sm:min-w-48 px-3 text-sm text-slate-200">
+            <option value="">选择设备…</option>
+            <option v-for="d in devices" :key="d.id" :value="d.id">
+              {{ deviceOptionLabel(d) }}
+            </option>
+          </select>
+          <button @click="loadCurrentDetail" :disabled="!selectedDevice || detailLoading"
+            class="px-3 py-2 rounded-lg border border-slate-700 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 disabled:opacity-50 transition-colors">
+            {{ detailLoading ? '刷新中…' : '刷新详情' }}
+          </button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 加载中 -->
     <div v-if="loading" class="text-center py-12 text-slate-500">
       <div class="animate-spin text-3xl mb-2">⏳</div>
       <p>加载中…</p>
     </div>
+
+    <div v-else-if="devices.length === 0"
+      class="app-panel-soft border-dashed rounded-lg p-12 text-center">
+      <div class="text-5xl mb-4">📡</div>
+      <h3 class="text-lg font-semibold text-slate-300 mb-2">还没有添加设备</h3>
+      <p class="text-sm text-slate-500 mb-4">首次启动需要先完成初始化向导</p>
+      <router-link to="/setup"
+        class="inline-block bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg text-sm transition-colors">
+        开始初始化
+      </router-link>
+    </div>
+
+    <template v-else>
+      <section class="app-panel rounded-lg p-5 lg:p-6 overflow-hidden relative">
+        <div class="device-hero-grid"></div>
+        <div class="relative z-10 grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="status-pill text-xs" :class="isOnline ? 'text-green-400' : 'text-red-400'">
+                <span :class="isOnline ? 'dot-online' : 'dot-offline'"></span>
+                {{ isOnline ? '在线' : '离线' }}
+              </span>
+              <span class="status-pill text-xs text-slate-400">SSH {{ selectedDeviceInfo?.host }}:{{ selectedDeviceInfo?.port }}</span>
+              <span class="status-pill text-xs text-slate-400">{{ snapshotTime }}</span>
+            </div>
+
+            <div class="mt-5 flex items-center gap-3">
+              <span class="grid place-items-center w-12 h-12 rounded-lg bg-slate-800/50 border border-slate-800 text-3xl shrink-0">
+                {{ selectedDeviceIcon }}
+              </span>
+              <div class="min-w-0">
+                <h3 class="text-2xl lg:text-3xl font-bold text-white break-words">{{ selectedDeviceName }}</h3>
+                <p class="mt-1 text-sm text-slate-500 truncate">{{ hostname }}</p>
+              </div>
+            </div>
+            <p class="mt-2 text-sm text-slate-400 break-words">
+              {{ modelText }} · {{ firmwareText }}
+            </p>
+
+            <div class="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3 border-t border-slate-800 pt-5">
+              <div class="min-w-0">
+                <div class="text-[11px] text-slate-500">WAN</div>
+                <div class="mt-1 metric-value text-sm font-mono text-white truncate">{{ publicIp }}</div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] text-slate-500">LAN</div>
+                <div class="mt-1 metric-value text-sm font-mono text-white truncate">{{ selectedDeviceInfo?.host || '-' }}</div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] text-slate-500">接口</div>
+                <div class="mt-1 metric-value text-sm font-mono text-white truncate">{{ wanName || '-' }}</div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] text-slate-500">运行时间</div>
+                <div class="mt-1 metric-value text-sm text-white truncate">{{ uptimeText }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 content-center">
+            <div class="device-ring">
+              <svg viewBox="0 0 120 120" class="w-full h-full">
+                <circle cx="60" cy="60" r="48" class="ring-track" />
+                <circle cx="60" cy="60" r="48" class="ring-value cpu" :style="{ strokeDashoffset: ringOffset(cpuValue) }" />
+              </svg>
+              <div class="absolute inset-0 grid place-items-center text-center">
+                <div>
+                  <div class="text-[11px] text-slate-500">CPU</div>
+                  <div class="metric-value text-2xl font-bold text-white">{{ cpuValue }}%</div>
+                </div>
+              </div>
+            </div>
+            <div class="device-ring">
+              <svg viewBox="0 0 120 120" class="w-full h-full">
+                <circle cx="60" cy="60" r="48" class="ring-track" />
+                <circle cx="60" cy="60" r="48" class="ring-value memory" :style="{ strokeDashoffset: ringOffset(memValue) }" />
+              </svg>
+              <div class="absolute inset-0 grid place-items-center text-center">
+                <div>
+                  <div class="text-[11px] text-slate-500">内存</div>
+                  <div class="metric-value text-2xl font-bold text-white">{{ memValue }}%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-6 gap-3 xl:gap-4">
+        <MetricCard title="CPU" :value="cpuValue" suffix="%" icon="⚡" :progress="Number(cpuValue)" :glow="Number(cpuValue) > 80" />
+        <MetricCard title="内存" :value="memValue" suffix="%" icon="🧠" :progress="Number(memValue)" />
+        <MetricCard title="负载" :value="loadText" icon="📈" :subtitle="'1 / 5 / 15 分钟'" />
+        <MetricCard title="温度" :value="tempValue" suffix="°C" icon="🌡️" :progress="temperatureProgress" :glow="Number(tempValue) > 70" />
+        <MetricCard title="连接" :value="conntrackCount" icon="🔗" :subtitle="conntrackMax ? `上限 ${conntrackMax}` : ''" :progress="conntrackPercent" />
+        <MetricCard title="LAN 在线" :value="onlineDeviceCount" suffix=" 台" icon="🖥️" :subtitle="totalDeviceCount ? `共 ${totalDeviceCount} 台` : ''" />
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-[1.6fr_0.75fr_0.75fr] gap-4 xl:gap-5 items-stretch">
+        <div class="xl:col-span-2 min-h-[26rem]">
+          <TrafficChart title="近 1 小时吞吐" :data="trafficChartData" unit="bytes" fill />
+        </div>
+
+        <section class="app-panel rounded-lg p-4 h-full">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4">系统可视化</h3>
+          <div class="space-y-4">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-500">CPU 核心</span>
+                <span class="text-slate-300">{{ cpuCores.length || 1 }} 核</span>
+              </div>
+              <div class="space-y-2">
+                <div v-for="(core, index) in normalizedCores" :key="index" class="space-y-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400">Core {{ index }}</span>
+                    <span class="numeric-value text-slate-300">{{ core }}%</span>
+                  </div>
+                  <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500"
+                      :class="core > 80 ? 'bg-red-400' : core > 50 ? 'bg-amber-400' : 'bg-cyan-400'"
+                      :style="{ width: barWidth(core) }"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-4">
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-500">内存</span>
+                <span class="text-slate-300">{{ memoryText }}</span>
+              </div>
+              <div class="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full bg-green-400 transition-all duration-500"
+                  :style="{ width: barWidth(memValue) }"></div>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs text-slate-500 mb-2">磁盘</div>
+              <div v-if="diskUsage.length" class="space-y-3">
+                <div v-for="disk in diskUsage" :key="disk.mount" class="space-y-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400">{{ disk.mount }}</span>
+                    <span class="text-slate-300">{{ formatGb(disk.used_gb) }} / {{ formatGb(disk.total_gb) }}</span>
+                  </div>
+                  <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500"
+                      :class="disk.percent > 80 ? 'bg-red-400' : disk.percent > 50 ? 'bg-amber-400' : 'bg-green-400'"
+                      :style="{ width: barWidth(disk.percent) }"></div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-xs text-slate-500">暂无磁盘数据</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-3 gap-4 xl:gap-5">
+        <section class="xl:col-span-2 app-panel rounded-lg p-4">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <h3 class="text-sm font-semibold text-slate-300">网络接口</h3>
+            <span class="text-xs text-slate-500">{{ interfaceRows.length }} 个接口</span>
+          </div>
+          <div v-if="interfaceRows.length" class="space-y-2">
+            <div v-for="iface in interfaceRows" :key="iface.name"
+              class="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr] gap-3 border border-slate-800 rounded-lg px-3 py-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full" :class="iface.isWan ? 'bg-cyan-400' : 'bg-green-400'"></span>
+                  <span class="font-semibold text-white truncate">{{ iface.name }}</span>
+                  <span v-if="iface.address" class="text-xs text-slate-500 font-mono truncate">{{ iface.address }}</span>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                  <span>RX {{ formatBytes(iface.rx_bytes) }}</span>
+                  <span>TX {{ formatBytes(iface.tx_bytes) }}</span>
+                  <span v-if="iface.rx_errors || iface.tx_errors" class="text-amber-400">
+                    错误 {{ iface.rx_errors + iface.tx_errors }}
+                  </span>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="text-slate-500">RX 包</span>
+                    <span class="numeric-value text-slate-300">{{ iface.rx_packets }}</span>
+                  </div>
+                  <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full bg-cyan-400 transition-all duration-500"
+                      :style="{ width: iface.rxWidth }"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="text-slate-500">TX 包</span>
+                    <span class="numeric-value text-slate-300">{{ iface.tx_packets }}</span>
+                  </div>
+                  <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full bg-amber-400 transition-all duration-500"
+                      :style="{ width: iface.txWidth }"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-slate-500 py-8 text-center">暂无接口数据</div>
+        </section>
+
+        <section class="app-panel rounded-lg p-4">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4">连接状态</h3>
+          <div class="space-y-5">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-500">Conntrack</span>
+                <span class="text-slate-300">{{ conntrackPercent.toFixed(1) }}%</span>
+              </div>
+              <div class="h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500"
+                  :class="conntrackPercent > 80 ? 'bg-red-400' : conntrackPercent > 50 ? 'bg-amber-400' : 'bg-green-400'"
+                  :style="{ width: barWidth(conntrackPercent) }"></div>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs text-slate-500 mb-3">TCP 状态</div>
+              <div v-if="tcpStateRows.length" class="space-y-2">
+                <div v-for="item in tcpStateRows" :key="item.name">
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="text-slate-400">{{ item.name }}</span>
+                    <span class="numeric-value text-slate-300">{{ item.count }}</span>
+                  </div>
+                  <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full bg-cyan-400 transition-all duration-500"
+                      :style="{ width: item.width }"></div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-xs text-slate-500">暂无 TCP 状态数据</div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-4">
+              <div class="text-xs text-slate-500 mb-3">协议分布</div>
+              <div v-if="protocolRows.length" class="flex flex-wrap gap-2">
+                <span v-for="item in protocolRows" :key="item.name"
+                  class="status-pill text-xs text-slate-300">
+                  {{ item.name }} {{ item.count }}
+                </span>
+              </div>
+              <div v-else class="text-xs text-slate-500">暂无协议数据</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-3 gap-4 xl:gap-5">
+        <section class="app-panel rounded-lg p-4">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4">设备画像</h3>
+          <div class="space-y-3 text-sm">
+            <DetailLine label="型号" :value="modelText" />
+            <DetailLine label="板卡" :value="probe?.board_name || '-'" />
+            <DetailLine label="固件" :value="firmwareText" />
+            <DetailLine label="内核" :value="kernelText" />
+            <DetailLine label="架构" :value="probe?.arch || '-'" />
+            <DetailLine label="默认路由" :value="probe?.default_route || '-'" mono />
+            <DetailLine label="DNS" :value="dnsText" mono />
+            <DetailLine label="软件包" :value="probe?.package_count ? `${probe.package_count} 个` : '-'" />
+          </div>
+        </section>
+
+        <section class="xl:col-span-2 app-panel rounded-lg p-4">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <h3 class="text-sm font-semibold text-slate-300">局域网在线设备</h3>
+            <router-link to="/lan" class="text-xs text-brand-300 hover:text-white transition-colors">查看全部</router-link>
+          </div>
+          <div v-if="lanDevices.length" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div v-for="item in lanDevices" :key="item.mac || item.ip"
+              class="border border-slate-800 rounded-lg px-3 py-3 min-w-0">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-semibold text-white truncate">{{ item.hostname || item.ip }}</div>
+                  <div class="mt-1 text-xs text-slate-500 font-mono truncate">{{ item.mac }}</div>
+                </div>
+                <span class="status-pill text-xs" :class="item.online ? 'text-green-400' : 'text-slate-500'">
+                  {{ item.online ? '在线' : '离线' }}
+                </span>
+              </div>
+              <div class="mt-3 flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-mono">{{ item.ip }}</span>
+                <span class="text-slate-400">{{ item.remain || '-' }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-slate-500 py-8 text-center">暂无局域网设备数据</div>
+        </section>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import MetricCard from '../components/MetricCard.vue'
 import TrafficChart from '../components/TrafficChart.vue'
 import { useApi } from '../composables/useApi'
 import { useWebSocket } from '../composables/useWebSocket'
+import { getDeviceDisplayName, getDeviceIcon } from '../utils/deviceDisplay'
 
 const { get } = useApi()
 const { metrics: wsMetrics } = useWebSocket()
 
 const devices = ref([])
 const selectedDevice = ref('')
-const loading = ref(true)
-const trafficHistory = ref([])
-const unitMode = ref('bits') // 'bits' | 'bytes'
 const interval = ref(3)
+const loading = ref(true)
+const detailLoading = ref(false)
+const detail = ref(null)
+const history = ref({ points: [] })
+
+const selectedDeviceInfo = computed(() => devices.value.find(d => d.id === selectedDevice.value))
+const selectedDeviceName = computed(() => getDeviceDisplayName(selectedDeviceInfo.value))
+const selectedDeviceIcon = computed(() => getDeviceIcon(selectedDeviceInfo.value))
+const probe = computed(() => detail.value?.probe || null)
+const probeError = computed(() => detail.value?.probe_error || '')
+const snapshot = computed(() => detail.value?.snapshot || {})
+const currentMetrics = computed(() => {
+  if (!selectedDevice.value) return null
+  return wsMetrics.value[selectedDevice.value] || snapshot.value?.data || null
+})
+
+const sysRaw = computed(() => currentMetrics.value?.system || {})
+const netRaw = computed(() => currentMetrics.value?.network || {})
+const lanRaw = computed(() => currentMetrics.value?.lan || {})
+
+const hostname = computed(() => probe.value?.hostname || lanRaw.value?.router_hostname || selectedDeviceName.value)
+const modelText = computed(() => probe.value?.model || '-')
+const firmwareText = computed(() => probe.value?.firmware || selectedDeviceInfo.value?.firmware || '-')
+const kernelText = computed(() => probe.value?.kernel || '-')
+const publicIp = computed(() => netRaw.value?.public_ip || '-')
+const isOnline = computed(() => selectedDeviceInfo.value?.online || Boolean(currentMetrics.value && !currentMetrics.value.error))
+const cpuValue = computed(() => Number(sysRaw.value?.cpu_percent || 0).toFixed(1))
+const memValue = computed(() => Number(sysRaw.value?.memory_percent || 0).toFixed(1))
+const tempValue = computed(() => {
+  const temps = sysRaw.value?.temperature_c
+  return temps?.length ? Number(temps[0].temp_c || 0).toFixed(1) : 0
+})
+const temperatureProgress = computed(() => Math.min(100, Math.max(0, (Number(tempValue.value) - 30) * 1.7)))
+const loadText = computed(() => {
+  const a = Number(sysRaw.value?.load_1m || 0).toFixed(2)
+  const b = Number(sysRaw.value?.load_5m || 0).toFixed(2)
+  const c = Number(sysRaw.value?.load_15m || 0).toFixed(2)
+  return `${a} / ${b} / ${c}`
+})
+const conntrackCount = computed(() => netRaw.value?.conntrack_count || 0)
+const conntrackMax = computed(() => netRaw.value?.conntrack_max || 0)
+const conntrackPercent = computed(() => Number(netRaw.value?.conntrack_percent || 0))
+const onlineDeviceCount = computed(() => lanRaw.value?.online_count || 0)
+const totalDeviceCount = computed(() => lanRaw.value?.total_count || 0)
+const cpuCores = computed(() => sysRaw.value?.cpu_per_core || [])
+const normalizedCores = computed(() => cpuCores.value.length ? cpuCores.value : [Number(cpuValue.value)])
+const diskUsage = computed(() => sysRaw.value?.disk_usage || [])
+const memoryText = computed(() => {
+  const used = sysRaw.value?.memory_used_mb
+  const total = sysRaw.value?.memory_total_mb
+  if (!total) return '-'
+  return `${formatMb(used)} / ${formatMb(total)}`
+})
+const uptimeText = computed(() => formatUptime(
+  sysRaw.value?.uptime_seconds || probe.value?.uptime_seconds || selectedDeviceInfo.value?.uptime || 0,
+))
+const snapshotTime = computed(() => formatTime(snapshot.value?.collected_at || currentMetrics.value?.timestamp))
+const dnsText = computed(() => probe.value?.dns?.length ? probe.value.dns.join(', ') : '-')
+
+const addressMap = computed(() => {
+  const map = {}
+  for (const item of probe.value?.interfaces || []) {
+    map[item.name] = `${item.address}/${item.prefix}`
+  }
+  return map
+})
+
+const wanName = computed(() => {
+  const ifaces = netRaw.value?.interfaces || {}
+  const names = Object.keys(ifaces)
+  return names.find(n => n === 'pppoe-wan')
+    || names.find(n => n === 'eth1')
+    || names.find(n => !['lo', 'sit0', 'dummy0', 'gre0', 'gretap0', 'erspan0', 'docker0'].includes(n))
+    || names[0]
+    || ''
+})
+
+const interfaceRows = computed(() => {
+  const ifaces = netRaw.value?.interfaces || {}
+  const rows = Object.entries(ifaces).map(([name, data]) => ({
+    name,
+    address: addressMap.value[name] || '',
+    isWan: name === wanName.value,
+    ...data,
+  }))
+  const maxRx = Math.max(...rows.map(item => item.rx_packets || 0), 1)
+  const maxTx = Math.max(...rows.map(item => item.tx_packets || 0), 1)
+  return rows
+    .sort((a, b) => Number(b.isWan) - Number(a.isWan) || (b.rx_bytes + b.tx_bytes) - (a.rx_bytes + a.tx_bytes))
+    .map(item => ({
+      ...item,
+      rxWidth: barWidth((item.rx_packets || 0) / maxRx * 100),
+      txWidth: barWidth((item.tx_packets || 0) / maxTx * 100),
+    }))
+})
+
+const tcpStateRows = computed(() => {
+  const entries = Object.entries(netRaw.value?.tcp_states || {})
+    .map(([name, count]) => ({ name, count: Number(count) }))
+    .sort((a, b) => b.count - a.count)
+  const max = Math.max(...entries.map(item => item.count), 1)
+  return entries.map(item => ({
+    ...item,
+    width: barWidth(item.count / max * 100),
+  }))
+})
+
+const protocolRows = computed(() => Object.entries(netRaw.value?.conntrack_protocols || {})
+  .map(([name, count]) => ({ name, count }))
+  .sort((a, b) => Number(b.count) - Number(a.count)))
+
+const lanDevices = computed(() => (lanRaw.value?.leases || [])
+  .slice()
+  .sort((a, b) => Number(b.online) - Number(a.online))
+  .slice(0, 8))
+
+const trafficChartData = computed(() => (history.value.points || []).map((point) => {
+  const d = new Date(point.t)
+  return {
+    time: d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'),
+    rx: point.rx || 0,
+    tx: point.tx || 0,
+  }
+}))
+
+const DetailLine = defineComponent({
+  props: {
+    label: { type: String, required: true },
+    value: { type: [String, Number], default: '-' },
+    mono: Boolean,
+  },
+  setup(props) {
+    return () => h('div', { class: 'grid grid-cols-[5rem_1fr] gap-3 border-b border-slate-800 last:border-b-0 pb-3 last:pb-0' }, [
+      h('span', { class: 'text-slate-500' }, props.label),
+      h('span', {
+        class: [
+          'text-slate-200 min-w-0 break-words',
+          props.mono ? 'font-mono text-xs' : '',
+        ],
+      }, props.value || '-'),
+    ])
+  },
+})
+
+function deviceOptionLabel(device) {
+  return `${getDeviceIcon(device)} ${getDeviceDisplayName(device)}`
+}
 
 async function changeInterval() {
   try {
@@ -232,184 +520,158 @@ async function changeInterval() {
   }
 }
 
-function toggleUnit() {
-  unitMode.value = unitMode.value === 'bits' ? 'bytes' : 'bits'
+async function requestJson(url) {
+  const res = await fetch(url)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`)
+  return data
 }
 
-// 流量历史
-const trafficTimeRange = ref('0')
-const trafficHistoryData = ref({ points: [] })
-
-const trafficTimeLabel = computed(() => {
-  const labels = { '0': '实时', '1': '近1小时', '6': '近6小时', '24': '近24小时' }
-  return labels[trafficTimeRange.value] || '实时'
-})
-
-const chartData = computed(() => {
-  if (trafficTimeRange.value !== '0' && trafficHistoryData.value.points?.length) {
-    // 历史模式：用 API 返回的数据
-    const pts = trafficHistoryData.value.points
-    const step = Math.max(1, Math.floor(pts.length / 120))  // 降采样到约 120 点
-    const sampled = []
-    for (let i = 0; i < pts.length; i += step) {
-      const d = new Date(pts[i].t)
-      sampled.push({
-        time: d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0'),
-        rx: pts[i].rx,
-        tx: pts[i].tx,
-      })
-    }
-    return sampled
+async function loadCurrentDetail() {
+  if (!selectedDevice.value) return
+  detailLoading.value = true
+  try {
+    detail.value = await requestJson(`/api/devices/${selectedDevice.value}/detail`)
+  } catch (e) {
+    console.error('加载设备详情失败', e)
+  } finally {
+    detailLoading.value = false
   }
-  // 实时模式
-  return trafficHistory.value
-})
+}
 
 async function loadTrafficHistory() {
-  if (!selectedDevice.value || trafficTimeRange.value === '0') return
+  if (!selectedDevice.value) return
   try {
-    const res = await fetch(`/api/metrics/history/${selectedDevice.value}?hours=${trafficTimeRange.value}`)
-    trafficHistoryData.value = await res.json()
+    history.value = await requestJson(`/api/metrics/history/${selectedDevice.value}?hours=1`)
   } catch (e) {
-    console.error('加载流量历史失败', e)
+    history.value = { points: [] }
   }
 }
 
-// 从 WebSocket 获取当前设备指标
-const currentMetrics = computed(() => {
-  if (!selectedDevice.value) return null
-  return wsMetrics.value[selectedDevice.value] || null
-})
-
-// 格式函数 — 支持 bits/s 和 bytes/s
-function fmtBits(val, mode) {
-  if (!val || val === 0) return mode === 'bits' ? '0 b' : '0 B'
-  const div = mode === 'bytes' ? 1 : 1 // val already in bits for 'bits', in bytes for 'bytes'
-  const threshold = mode === 'bytes' ? 1024 : 1000
-  const suffix = mode === 'bytes' ? ['B', 'KB', 'MB', 'GB', 'TB'] : ['b', 'Kb', 'Mb', 'Gb', 'Tb']
-  const step = mode === 'bytes' ? 1024 : 1000
-  let v = val
-  let i = 0
-  while (v >= step && i < suffix.length - 1) { v /= step; i++ }
-  return v.toFixed(i === 0 ? 0 : 1) + ' ' + suffix[i]
-}
-
-function fmtDiskSize(gb) {
-  if (!gb || gb === 0) return '0 B'
-  if (gb >= 1) return gb.toFixed(2) + ' GB'
-  const mb = gb * 1024
-  if (mb >= 1) return mb.toFixed(2) + ' MB'
-  const kb = mb * 1024
-  return kb.toFixed(2) + ' KB'
-}
-
-// 派生指标
-const cpuValue = computed(() => currentMetrics.value?.system?.cpu_percent ?? 0)
-const memValue = computed(() => currentMetrics.value?.system?.memory_percent ?? 0)
-const tempValue = computed(() => {
-  const temps = currentMetrics.value?.system?.temperature_c
-  return temps?.length ? temps[0].temp_c : 0
-})
-
-const sysRaw = computed(() => currentMetrics.value?.system)
-const netRaw = computed(() => currentMetrics.value?.network)
-const lanRaw = computed(() => currentMetrics.value?.lan)
-
-const sysLoad1 = computed(() => sysRaw.value?.load_1m?.toFixed(2) ?? '-')
-const sysLoad5 = computed(() => sysRaw.value?.load_5m?.toFixed(2) ?? '-')
-const sysLoad15 = computed(() => sysRaw.value?.load_15m?.toFixed(2) ?? '-')
-
-const conntrackCount = computed(() => netRaw.value?.conntrack_count ?? 0)
-const conntrackMax = computed(() => netRaw.value?.conntrack_max ?? 65536)
-const conntrackPercent = computed(() => netRaw.value?.conntrack_percent ?? 0)
-const conntrackPercentText = computed(() => `${conntrackPercent.value.toFixed(1)}%`)
-const conntrackBarWidth = computed(() => {
-  const percent = Math.min(Math.max(conntrackPercent.value, 0), 100)
+function barWidth(value) {
+  const percent = Math.min(100, Math.max(0, Number(value) || 0))
   if (percent === 0) return '0%'
   return `${Math.max(percent, 4)}%`
-})
-
-const publicIp = computed(() => netRaw.value?.public_ip || '-')
-const lanIp = computed(() => devices.value.find(d => d.id === selectedDevice.value)?.host || '-')
-const onlineDeviceCount = computed(() => lanRaw.value?.online_count ?? 0)
-const totalDeviceCount = computed(() => lanRaw.value?.total_count ?? 0)
-
-const diskUsage = computed(() => sysRaw.value?.disk_usage ?? [])
-
-// 流量速率（从接口累计差值计算）
-let lastRx = {}
-let lastTx = {}
-const rxRate = ref('0 b')
-const txRate = ref('0 b')
-const wanName = ref('pppoe-wan')
-let trafficTimer = null
-
-function updateTraffic() {
-  const ifaces = netRaw.value?.interfaces
-  if (!ifaces) return
-
-  const now = new Date()
-  const time = now.getHours().toString().padStart(2, '0') + ':' +
-               now.getMinutes().toString().padStart(2, '0') + ':' +
-               now.getSeconds().toString().padStart(2, '0')
-
-  // 只取 WAN 口流量（pppoe-wan > eth1 > 第一个非虚拟接口）
-  const wanKey = Object.keys(ifaces).find(n => n === 'pppoe-wan')
-             || Object.keys(ifaces).find(n => n === 'eth1')
-             || Object.keys(ifaces).find(n => !['sit0','dummy0','gre0','gretap0','erspan0','docker0'].includes(n))
-  if (wanKey) wanName.value = wanKey
-  const totalRx = wanKey ? (ifaces[wanKey]?.rx_bytes || 0) : 0
-  const totalTx = wanKey ? (ifaces[wanKey]?.tx_bytes || 0) : 0
-
-  const deviceId = selectedDevice.value
-  if (lastRx[deviceId] !== undefined) {
-    const rxDiffBytes = totalRx - lastRx[deviceId]
-    const txDiffBytes = totalTx - lastTx[deviceId]
-
-    // 根据单位模式：bits 模式要 *8，bytes 模式直接用
-    const rxDiff = unitMode.value === 'bits' ? rxDiffBytes * 8 : rxDiffBytes
-    const txDiff = unitMode.value === 'bits' ? txDiffBytes * 8 : txDiffBytes
-
-    rxRate.value = fmtBits(rxDiff, unitMode.value)
-    txRate.value = fmtBits(txDiff, unitMode.value)
-
-    trafficHistory.value.push({ time, rx: rxDiff, tx: txDiff })
-    if (trafficHistory.value.length > 120) {
-      trafficHistory.value = trafficHistory.value.slice(-120)
-    }
-  }
-
-  lastRx[deviceId] = totalRx
-  lastTx[deviceId] = totalTx
 }
 
-// 自动选择第一个设备 + 加载采集间隔
+function ringOffset(value) {
+  const radius = 48
+  const circumference = 2 * Math.PI * radius
+  const percent = Math.min(100, Math.max(0, Number(value) || 0))
+  return circumference - (percent / 100) * circumference
+}
+
+function formatUptime(seconds) {
+  const s = Number(seconds || 0)
+  if (!s) return '-'
+  const days = Math.floor(s / 86400)
+  const hours = Math.floor((s % 86400) / 3600)
+  const mins = Math.floor((s % 3600) / 60)
+  if (days > 0) return `${days}天 ${hours}小时`
+  if (hours > 0) return `${hours}小时 ${mins}分钟`
+  return `${mins}分钟`
+}
+
+function formatTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function formatMb(value) {
+  const mb = Number(value || 0)
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`
+  return `${mb.toFixed(0)} MB`
+}
+
+function formatGb(value) {
+  const gb = Number(value || 0)
+  if (gb >= 1) return `${gb.toFixed(1)} GB`
+  return `${(gb * 1024).toFixed(0)} MB`
+}
+
+function formatBytes(value) {
+  let val = Number(value || 0)
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let index = 0
+  while (val >= 1024 && index < units.length - 1) {
+    val /= 1024
+    index += 1
+  }
+  return `${val.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
 onMounted(async () => {
   try {
     devices.value = await get('/devices')
     if (devices.value.length > 0) {
       selectedDevice.value = devices.value[0].id
+      await Promise.all([loadCurrentDetail(), loadTrafficHistory()])
     }
     const res = await fetch('/api/settings/interval')
     const data = await res.json()
     if (data.interval_seconds) interval.value = data.interval_seconds
   } catch (e) {
     console.error('初始化加载失败', e)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 })
 
-// 监听 WebSocket 数据更新流量
-watch(currentMetrics, () => {
-  if (trafficTimeRange.value === '0') {
-    updateTraffic()
-  }
-}, { deep: true })
-
-// 设备切换时重新加载历史流量
-watch(selectedDevice, () => {
-  if (trafficTimeRange.value !== '0') {
-    loadTrafficHistory()
-  }
+watch(selectedDevice, async (value, oldValue) => {
+  if (!value || value === oldValue) return
+  detail.value = null
+  history.value = { points: [] }
+  await Promise.all([loadCurrentDetail(), loadTrafficHistory()])
 })
 </script>
+
+<style scoped>
+.device-hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--c-cyan-400) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--c-cyan-400) 8%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 82% 20%, color-mix(in srgb, var(--c-brand-600) 24%, transparent), transparent 22rem);
+  background-size: 34px 34px, 34px 34px, auto;
+  mask-image: linear-gradient(90deg, black, transparent 90%);
+}
+
+.device-ring {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 9rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface-muted) 58%, transparent);
+  border: 1px solid var(--app-border);
+}
+
+.ring-track,
+.ring-value {
+  fill: none;
+  stroke-width: 9;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.ring-track {
+  stroke: color-mix(in srgb, var(--c-sl-700) 60%, transparent);
+}
+
+.ring-value {
+  stroke-linecap: round;
+  stroke-dasharray: 301.59;
+  transition: stroke-dashoffset .5s ease;
+}
+
+.ring-value.cpu {
+  stroke: var(--c-cyan-400);
+}
+
+.ring-value.memory {
+  stroke: var(--c-green-400);
+}
+</style>

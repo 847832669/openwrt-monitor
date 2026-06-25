@@ -6,7 +6,7 @@ from typing import Optional
 class Settings(BaseSettings):
     app_name: str = "OpenWrt Monitor"
     app_version: str = "0.4.1"
-    debug: bool = True
+    debug: bool = False
 
     # 数据库
     database_url: str = "sqlite+aiosqlite:///data/monitor.db"
@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = "openwrt-monitor-dev-secret-change-in-prod"
     access_token_expire_minutes: int = 1440  # 24h
+    auth_disabled: bool = False
+    admin_username: str = "admin"
+    admin_password: str = "admin"
+    history_retention_days: int = 7
 
     # 前端
     cors_origins: list[str] = ["*"]

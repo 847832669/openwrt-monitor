@@ -11,6 +11,7 @@ class SSHClientPool:
 
     def __init__(self):
         self._connections: dict[str, asyncssh.SSHClientConnection] = {}
+        self._connecting: dict[str, asyncio.Task] = {}
         self._lock = Lock()
 
     async def connect(
@@ -23,13 +24,50 @@ class SSHClientPool:
         password: str = "",
     ) -> asyncssh.SSHClientConnection:
         key = f"{username}@{host}:{port}"
-        if key in self._connections:
-            conn = self._connections[key]
-            if conn.is_closed():
-                del self._connections[key]
-            else:
+        async with self._lock:
+            conn = self._connections.get(key)
+            if conn and not conn.is_closed():
                 return conn
+            if conn and conn.is_closed():
+                del self._connections[key]
 
+            task = self._connecting.get(key)
+            if not task:
+                task = asyncio.create_task(self._connect_new(
+                    host=host,
+                    port=port,
+                    username=username,
+                    auth_type=auth_type,
+                    private_key_path=private_key_path,
+                    password=password,
+                ))
+                self._connecting[key] = task
+
+        try:
+            conn = await task
+        except Exception:
+            async with self._lock:
+                if self._connecting.get(key) is task:
+                    del self._connecting[key]
+            raise
+
+        async with self._lock:
+            if self._connecting.get(key) is task:
+                del self._connecting[key]
+            if conn.is_closed():
+                raise RuntimeError(f"SSH connection closed immediately: {key}")
+            self._connections[key] = conn
+            return conn
+
+    async def _connect_new(
+        self,
+        host: str,
+        port: int,
+        username: str,
+        auth_type: str,
+        private_key_path: str,
+        password: str,
+    ) -> asyncssh.SSHClientConnection:
         kwargs = {
             "host": host,
             "port": port,
@@ -42,20 +80,29 @@ class SSHClientPool:
         elif auth_type == "password" and password:
             kwargs["password"] = password
 
-        conn = await asyncssh.connect(**kwargs)
-        self._connections[key] = conn
-        return conn
+        return await asyncio.wait_for(asyncssh.connect(**kwargs), timeout=15)
 
     async def close(self, host: str, port: int = 22, username: str = "root"):
         key = f"{username}@{host}:{port}"
         if key in self._connections:
-            self._connections[key].close()
+            conn = self._connections[key]
+            conn.close()
+            await conn.wait_closed()
             del self._connections[key]
 
     async def close_all(self):
-        for key, conn in self._connections.items():
-            conn.close()
+        connections = list(self._connections.values())
         self._connections.clear()
+        for task in self._connecting.values():
+            task.cancel()
+        self._connecting.clear()
+        for conn in connections:
+            conn.close()
+        if connections:
+            await asyncio.gather(
+                *(conn.wait_closed() for conn in connections),
+                return_exceptions=True,
+            )
 
 
 ssh_pool = SSHClientPool()
@@ -82,7 +129,12 @@ class BaseCollector:
             self.auth_type, self.private_key_path, self.password,
         )
         process = await conn.create_process(cmd)
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+        except asyncio.TimeoutError as exc:
+            process.kill()
+            await process.wait_closed()
+            raise TimeoutError(f"Command timed out: {cmd[:120]}") from exc
         exit_code = process.returncode
         if exit_code != 0:
             raise RuntimeError(f"Command failed [{exit_code}]: {cmd}\n{stderr}")

@@ -20,5 +20,10 @@
   <DateInstalled>0</DateInstalled>
   <Requires/>
   <Config Name="WebUI Port" Target="8000" Default="8000" Mode="tcp" Description="Web 管理端口" Type="Port" Display="always" Required="true" Mask="false">8000</Config>
-  <Config Name="Data Path" Target="/app/data" Default="/mnt/user/appdata/openwrt-monitor/data/" Mode="rw" Description="数据持久化目录（数据库、告警规则）" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/openwrt-monitor/data/</Config>
+  <Config Name="Data Path" Target="/app/data" Default="/mnt/user/appdata/openwrt-monitor/data/" Mode="rw" Description="数据持久化目录（数据库、告警规则、运行时设置）" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/openwrt-monitor/data/</Config>
+  <Config Name="OWM_SECRET_KEY" Target="OWM_SECRET_KEY" Default="please-change-to-a-long-random-string" Mode="" Description="用于 JWT 和 SSH 密码加密的生产密钥，请改成足够长的随机字符串" Type="Variable" Display="always" Required="true" Mask="true">please-change-to-a-long-random-string</Config>
+  <Config Name="OWM_ADMIN_USERNAME" Target="OWM_ADMIN_USERNAME" Default="admin" Mode="" Description="管理员登录用户名" Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
+  <Config Name="OWM_ADMIN_PASSWORD" Target="OWM_ADMIN_PASSWORD" Default="please-change-admin-password" Mode="" Description="管理员登录密码，请勿使用默认值" Type="Variable" Display="always" Required="true" Mask="true">please-change-admin-password</Config>
+  <Config Name="OWM_HISTORY_RETENTION_DAYS" Target="OWM_HISTORY_RETENTION_DAYS" Default="7" Mode="" Description="历史数据默认保留天数，可在系统设置中改为 3/7/14/30" Type="Variable" Display="advanced" Required="false" Mask="false">7</Config>
+  <Config Name="OWM_AUTH_DISABLED" Target="OWM_AUTH_DISABLED" Default="false" Mode="" Description="仅本地开发调试使用；生产环境请保持 false" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
 </Container>

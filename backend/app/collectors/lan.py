@@ -1,6 +1,7 @@
 """局域网设备采集器 — DHCP 租约 / ARP 表"""
 from datetime import datetime, timezone
 from .base import BaseCollector
+from ..oui import apply_lan_device_profiles, detect_vendor, normalize_mac
 
 
 def _parse_lease_expiry(ts_secs: str) -> tuple[str, bool]:
@@ -72,8 +73,9 @@ cat /proc/sys/kernel/hostname 2>/dev/null || echo "openwrt"
                 if len(parts) >= 4:
                     expiry_str, mac, ip, hostname = parts[0], parts[1], parts[2], parts[3]
                     remain_text, expired = _parse_lease_expiry(expiry_str)
+                    normalized_mac = normalize_mac(mac)
                     result["leases"].append({
-                        "mac": mac.upper(),
+                        "mac": normalized_mac,
                         "ip": ip,
                         "hostname": hostname if hostname != "*" else "",
                         "expiry": expiry_str,
@@ -93,7 +95,7 @@ cat /proc/sys/kernel/hostname 2>/dev/null || echo "openwrt"
                     if mac and mac != "(incomplete)":
                         result["arp"].append({
                             "ip": ip,
-                            "mac": mac.upper(),
+                            "mac": normalize_mac(mac),
                             "online": online,
                             "device": parts[5] if len(parts) > 5 else "",
                         })
@@ -108,6 +110,11 @@ cat /proc/sys/kernel/hostname 2>/dev/null || echo "openwrt"
             # 先按 MAC 找 ARP，再按 IP 找
             arp_entry = arp_by_mac.get(lease["mac"]) or arp_by_ip.get(lease["ip"])
             lease["online"] = bool(arp_entry and arp_entry["online"]) or lease["ip"] in online_ips
+            if arp_entry:
+                lease["device"] = arp_entry.get("device", "")
+            else:
+                lease["device"] = ""
+            lease.update(detect_vendor(lease["mac"]))
 
         result["total_count"] = len(result["leases"])
 
@@ -115,5 +122,7 @@ cat /proc/sys/kernel/hostname 2>/dev/null || echo "openwrt"
         online_leases = sum(1 for l in result["leases"] if l["online"])
         online_arp = sum(1 for a in result["arp"] if a["online"])
         result["online_count"] = max(online_leases, online_arp)
+
+        apply_lan_device_profiles(result)
 
         return result

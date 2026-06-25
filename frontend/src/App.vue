@@ -1,13 +1,15 @@
 <template>
-  <div class="h-screen bg-slate-950 text-slate-100 overflow-hidden flex flex-col">
+  <router-view v-if="isLoginRoute" />
+
+  <div v-else class="app-shell text-slate-100 overflow-hidden flex flex-col">
     <!-- ===== 桌面端侧边栏 ===== -->
     <aside :class="[
-      'fixed inset-y-0 left-0 z-40 w-56 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 lg:translate-x-0',
+      'app-sidebar fixed inset-y-0 left-0 z-40 app-panel border-y-0 border-l-0 flex flex-col transition-transform duration-300 lg:translate-x-0',
       sidebarOpen ? 'translate-x-0' : '-translate-x-full'
     ]">
       <div class="p-4 border-b border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="text-2xl">📶</span>
+          <span class="grid place-items-center w-9 h-9 rounded-lg bg-brand-600/20 text-brand-300 text-lg">📶</span>
           <div>
             <h1 class="text-base font-bold text-white">OpenWrt</h1>
             <p class="text-xs text-slate-400">性能监控平台</p>
@@ -16,22 +18,26 @@
         <!-- 关闭按钮（手机端） -->
         <button @click="sidebarOpen = false" class="lg:hidden text-slate-400 hover:text-white text-lg">✕</button>
       </div>
-      <nav class="flex-1 p-2 space-y-0.5 overflow-auto">
+      <nav class="flex-1 p-3 space-y-1 overflow-auto">
         <router-link v-for="item in navItems" :key="item.path"
           :to="item.path"
           @click="sidebarOpen = false"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap border"
           :class="$route.path === item.path
             ? 'bg-brand-600/20 text-brand-300 border border-brand-700/30'
-            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'"
+            : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-800/50 hover:border-slate-800'"
         >
           <span class="text-lg shrink-0">{{ item.icon }}</span>
           <span class="truncate">{{ item.label }}</span>
         </router-link>
       </nav>
-      <div class="p-3 border-t border-slate-800 space-y-1.5">
+      <div class="p-3 border-t border-slate-800 space-y-2">
+        <router-link v-if="securityWarning" to="/settings"
+          class="block rounded-lg border border-amber-400/30 bg-amber-900/20 px-2.5 py-2 text-xs text-amber-200 hover:border-amber-400/50">
+          安全设置待处理
+        </router-link>
         <div class="flex items-center justify-between text-xs text-slate-500">
-          <div class="flex items-center gap-1.5">
+          <div class="status-pill">
             <span class="inline-block w-2 h-2 rounded-full"
               :class="wsConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'"></span>
             {{ wsConnected ? '连接中' : '断开' }}
@@ -43,6 +49,9 @@
             </a>
             <button @click="toggleTheme" class="text-sm" :title="'切换' + themeMap[theme].label">
               {{ themeMap[theme].icon }}
+            </button>
+            <button @click="logout" class="text-xs text-slate-500 hover:text-slate-300 transition-colors" title="退出登录">
+              退出
             </button>
           </div>
         </div>
@@ -67,9 +76,9 @@
       class="fixed inset-0 z-30 bg-black/50 lg:hidden"></div>
 
     <!-- ===== 主内容区 ===== -->
-    <div class="flex-1 flex flex-col min-h-0 lg:ml-56">
+    <div class="app-main flex-1 flex flex-col min-h-0">
       <!-- 顶部导航条（手机端） -->
-      <header class="lg:hidden flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0">
+      <header class="mobile-header lg:hidden flex items-center justify-between px-4 py-2.5 app-panel border-x-0 border-t-0 shrink-0">
         <button @click="sidebarOpen = true" class="text-xl text-slate-300 hover:text-white">
           ☰
         </button>
@@ -78,20 +87,20 @@
         </div>
         <button @click="showAlerts = !showAlerts" class="relative text-xl">
           🔔
-          <span v-if="alertList.length > 0"
+          <span v-if="displayAlerts.length > 0"
             class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5 font-bold">
-            {{ alertList.length > 99 ? '99+' : alertList.length }}
+            {{ displayAlerts.length > 99 ? '99+' : displayAlerts.length }}
           </span>
         </button>
       </header>
 
       <!-- 页面内容 -->
-      <main class="flex-1 overflow-auto">
+      <main class="app-content flex-1 overflow-auto">
         <router-view />
 
         <!-- 告警面板 -->
         <div v-if="showAlerts"
-          class="fixed top-4 right-4 w-80 lg:w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-[70vh] flex flex-col">
+          class="fixed top-4 right-3 left-3 sm:left-auto sm:right-4 sm:w-96 app-panel rounded-lg z-50 max-h-[70vh] flex flex-col">
           <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
             <h3 class="text-sm font-semibold text-white">🔔 告警</h3>
             <div class="flex gap-2">
@@ -100,8 +109,8 @@
             </div>
           </div>
           <div class="flex-1 overflow-auto p-2 space-y-1">
-            <div v-if="alertList.length === 0" class="text-center py-8 text-slate-500 text-sm">✅ 暂无告警</div>
-            <div v-for="a in alertList" :key="a.id"
+            <div v-if="displayAlerts.length === 0" class="text-center py-8 text-slate-500 text-sm">✅ 暂无告警</div>
+            <div v-for="a in displayAlerts" :key="a.id"
               class="flex items-start gap-2 p-2 rounded-lg text-xs"
               :class="a.level === 'crit' ? 'bg-red-900/20' : a.level === 'warn' ? 'bg-amber-900/20' : 'bg-slate-800/50'">
               <span>{{ a.level === 'crit' ? '🔴' : a.level === 'warn' ? '🟡' : '🔵' }}</span>
@@ -116,14 +125,19 @@
       </main>
 
       <!-- 手机端底部导航 -->
-      <nav class="lg:hidden flex items-center justify-around bg-slate-900 border-t border-slate-800 px-1 py-1 shrink-0">
+      <nav class="mobile-bottom-nav lg:hidden flex items-center justify-around app-panel border-x-0 border-b-0 px-1 py-1 shrink-0">
         <router-link v-for="item in mobileNav" :key="item.path"
           :to="item.path"
           class="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] transition-colors min-w-0"
           :class="$route.path === item.path ? 'text-brand-300' : 'text-slate-500'">
           <span class="text-lg">{{ item.icon }}</span>
-          <span class="truncate max-w-[3rem]">{{ item.label }}</span>
+          <span class="truncate max-w-[3.25rem]">{{ item.label }}</span>
         </router-link>
+        <button @click="sidebarOpen = true"
+          class="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] text-slate-500 transition-colors min-w-0">
+          <span class="text-lg">☰</span>
+          <span class="truncate max-w-[3.25rem]">更多</span>
+        </button>
       </nav>
       <!-- 更新检查 Toast -->
       <div v-if="checkToast"
@@ -138,17 +152,39 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useWebSocket } from './composables/useWebSocket'
+import { requestJson } from './composables/useApi'
 
-const wsConnected = ref(false)
+const route = useRoute()
+const router = useRouter()
+const isLoginRoute = computed(() => route.name === 'login')
+const { connected: wsConnected, alerts: wsAlerts, clearAlerts: clearWsAlerts } = useWebSocket(computed(() => !isLoginRoute.value))
 const sidebarOpen = ref(false)
 const showAlerts = ref(false)
 const alertList = ref([])
+const securityInfo = ref(null)
 const appVersion = ref('0.4.1')
 const latestVersion = ref(null)
 const updateAvailable = ref(false)
 const checkingVer = ref(false)
 const checkToast = ref('')
+const displayAlerts = computed(() => {
+  const seen = new Set()
+  return [...wsAlerts.value, ...alertList.value]
+    .filter((item) => {
+      const id = item.id || `${item.title}-${item.message}-${item.time}`
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+    .slice(0, 100)
+})
+const securityWarning = computed(() => {
+  const info = securityInfo.value
+  return Boolean(info && !info.auth_disabled && (info.default_secret || info.default_admin_password))
+})
 
 async function checkUpdate() {
   checkingVer.value = true
@@ -211,9 +247,10 @@ const navItems = [
   { path: '/logs', icon: '📋', label: '系统日志' },
   { path: '/alerts', icon: '🔔', label: '告警规则' },
   { path: '/devices', icon: '⚙️', label: '设备管理' },
+  { path: '/settings', icon: '🛡️', label: '系统设置' },
 ]
 
-const mobileNav = navItems.slice(0, 5)
+const mobileNav = navItems.slice(0, 4)
 
 function toggleTheme() {
   const info = themeMap[theme.value]
@@ -232,44 +269,24 @@ function formatAlertTime(t) {
 
 function clearAlerts() {
   alertList.value = []
+  clearWsAlerts()
   fetch('/api/alerts', { method: 'DELETE' }).catch(() => {})
 }
 
-// WebSocket 连接
-import { onMounted, onUnmounted } from 'vue'
-let ws = null
-let pingTimer = null
-
-function connectWS() {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  ws = new WebSocket(`${protocol}//${location.host}/ws/metrics`)
-  ws.onopen = () => { wsConnected.value = true }
-  ws.onclose = () => {
-    wsConnected.value = false
-    setTimeout(connectWS, 3000)
+async function logout() {
+  try {
+    await requestJson('/auth/logout', { method: 'POST' })
+  } catch (e) {
+    // 即便服务端已过期，也回到登录页。
   }
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data)
-      if (msg.type === 'alert' && msg.alert) {
-        const exists = alertList.value.some(a => a.id === msg.alert.id)
-        if (!exists) {
-          alertList.value.unshift(msg.alert)
-          if (alertList.value.length > 100) alertList.value = alertList.value.slice(0, 100)
-        }
-      }
-      if (msg.type === 'ping') ws?.send('pong')
-    } catch { /* text pings */ }
-  }
-  pingTimer = setInterval(() => {
-    if (ws?.readyState === WebSocket.OPEN) ws.send('ping')
-  }, 30000)
+  router.push({ name: 'login' })
 }
 
 onMounted(() => {
   if (theme.value) document.documentElement.setAttribute('data-theme', theme.value)
-  connectWS()
+  if (isLoginRoute.value) return
   fetch('/api/alerts').then(r => r.json()).then(d => { alertList.value = d.alerts || [] }).catch(() => {})
+  requestJson('/settings/security').then(d => { securityInfo.value = d }).catch(() => {})
   // 版本检查
   fetch('/api/version').then(r => r.json()).then(v => { appVersion.value = v.version }).catch(() => {})
   fetch('https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5')
@@ -289,10 +306,5 @@ onMounted(() => {
         }
       }
     }).catch(() => {})
-})
-
-onUnmounted(() => {
-  clearInterval(pingTimer)
-  ws?.close()
 })
 </script>

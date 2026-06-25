@@ -4,6 +4,8 @@ import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..security import validate_websocket_auth
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -26,6 +28,9 @@ async def broadcast(data: dict):
 
 @router.websocket("/ws/metrics")
 async def metrics_websocket(websocket: WebSocket):
+    if not validate_websocket_auth(websocket):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     connected_clients.add(websocket)
     logger.info(f"WebSocket 客户端已连接 (当前 {len(connected_clients)} 个)")

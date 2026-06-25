@@ -1,12 +1,12 @@
 <template>
-  <div class="p-3 lg:p-6 space-y-6 max-w-4xl mx-auto">
+  <div class="page-container page-container-narrow space-y-6">
     <div>
       <h2 class="text-xl font-bold text-white">告警规则</h2>
       <p class="text-sm text-slate-400 mt-0.5">自定义告警触发条件 · 修改即时生效</p>
     </div>
 
-    <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
-      <table class="w-full text-sm">
+    <div class="app-panel rounded-lg overflow-x-auto">
+      <table class="min-w-[48rem] w-full text-sm">
         <thead>
           <tr class="text-slate-400 text-xs uppercase border-b border-slate-800">
             <th class="text-left px-4 py-3 font-medium w-8">状态</th>
@@ -61,7 +61,7 @@
       </table>
     </div>
 
-    <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+    <div class="app-panel-soft rounded-lg p-4">
       <h4 class="text-sm font-semibold text-slate-300 mb-2">📝 说明</h4>
       <ul class="text-xs text-slate-400 space-y-1 list-disc list-inside">
         <li>点击 <span class="text-green-400">✓</span> / <span class="text-slate-600">✕</span> 切换规则启用状态</li>

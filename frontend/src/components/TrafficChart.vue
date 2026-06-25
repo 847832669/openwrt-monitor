@@ -1,5 +1,6 @@
 <template>
-  <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+  <div class="app-panel rounded-lg p-4"
+    :class="fill ? 'h-full flex flex-col' : ''">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-semibold text-slate-300">{{ title }}</h3>
       <div class="flex gap-3 text-xs">
@@ -12,24 +13,25 @@
         <span class="text-slate-500 ml-1">{{ unitSuffix }}/s</span>
       </div>
     </div>
-    <div ref="chartRef" class="w-full" :style="{ height }"></div>
+    <div ref="chartRef" class="w-full min-h-0" :class="fill ? 'flex-1' : ''" :style="{ height: fill ? undefined : height }"></div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import * as echarts from 'echarts'
 
 const props = defineProps({
   title: { type: String, default: '实时流量' },
   height: { type: String, default: '200px' },
   data: { type: Array, default: () => [] },
   unit: { type: String, default: 'bits' },
+  fill: Boolean,
 })
 
 const chartRef = ref(null)
 let chart = null
 let inited = false
+let echartsModule = null
 
 const unitSuffix = computed(() => props.unit === 'bytes' ? 'B' : 'b')
 
@@ -51,88 +53,100 @@ function shortUnit() {
   return suffix
 }
 
-const chartOptions = {
-  tooltip: {
-    trigger: 'axis',
-    textStyle: { fontSize: 12 },
-    formatter: (params) => {
-      if (!params || !params.length) return ''
-      const time = params[0].axisValue
-      const rx = fmt(params[0].value)
-      const tx = fmt(params[1]?.value ?? 0)
-      return `<div style="font-size:12px">${time}</div>
-              <div>⬇ RX: ${rx}/s</div>
-              <div>⬆ TX: ${tx}/s</div>`
-    },
-  },
-  grid: { left: 50, right: 12, top: 10, bottom: 28 },
-  xAxis: {
-    type: 'category',
-    data: [],
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#64748b', fontSize: 10 },
-    boundaryGap: false,
-  },
-  yAxis: {
-    type: 'value',
-    splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
-    min: 0,
-    axisLabel: {
-      color: '#64748b', fontSize: 10,
-      formatter: (v) => {
-        const step = props.unit === 'bytes' ? 1024 : 1000
-        let val = v
-        let i = 0
-        const units = ['', 'K', 'M', 'G', 'T']
-        while (val >= step && i < units.length - 1) { val /= step; i++ }
-        return (i === 0 ? val.toFixed(0) : val.toFixed(1)) + units[i]
-      },
-    },
-  },
-  series: [
-    {
-      name: 'RX',
-      type: 'line',
-      data: [],
-      smooth: true,
-      symbol: 'none',
-      animationDuration: 400,
-      animationDurationUpdate: 300,
-      animationEasingUpdate: 'linear',
-      lineStyle: { color: '#22d3ee', width: 1.5 },
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(34, 211, 238, 0.3)' },
-          { offset: 1, color: 'rgba(34, 211, 238, 0)' },
-        ]),
-      },
-    },
-    {
-      name: 'TX',
-      type: 'line',
-      data: [],
-      smooth: true,
-      symbol: 'none',
-      animationDuration: 400,
-      animationDurationUpdate: 300,
-      animationEasingUpdate: 'linear',
-      lineStyle: { color: '#fbbf24', width: 1.5 },
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(251, 191, 36, 0.3)' },
-          { offset: 1, color: 'rgba(251, 191, 36, 0)' },
-        ]),
-      },
-    },
-  ],
+async function loadEcharts() {
+  if (!echartsModule) {
+    const mod = await import('../utils/echarts')
+    echartsModule = mod.getEcharts()
+  }
+  return echartsModule
 }
 
-function initChart() {
+function createChartOptions(echarts) {
+  return {
+    tooltip: {
+      trigger: 'axis',
+      textStyle: { fontSize: 12 },
+      formatter: (params) => {
+        if (!params || !params.length) return ''
+        const time = params[0].axisValue
+        const rx = fmt(params[0].value)
+        const tx = fmt(params[1]?.value ?? 0)
+        return `<div style="font-size:12px">${time}</div>
+                <div>⬇ RX: ${rx}/s</div>
+                <div>⬆ TX: ${tx}/s</div>`
+      },
+    },
+    grid: { left: 50, right: 12, top: 10, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: [],
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#64748b', fontSize: 10 },
+      boundaryGap: false,
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
+      min: 0,
+      axisLabel: {
+        color: '#64748b', fontSize: 10,
+        formatter: (v) => {
+          const step = props.unit === 'bytes' ? 1024 : 1000
+          let val = v
+          let i = 0
+          const units = ['', 'K', 'M', 'G', 'T']
+          while (val >= step && i < units.length - 1) { val /= step; i++ }
+          return (i === 0 ? val.toFixed(0) : val.toFixed(1)) + units[i]
+        },
+      },
+    },
+    series: [
+      {
+        name: 'RX',
+        type: 'line',
+        data: [],
+        smooth: true,
+        symbol: 'none',
+        animationDuration: 400,
+        animationDurationUpdate: 300,
+        animationEasingUpdate: 'linear',
+        lineStyle: { color: '#22d3ee', width: 1.5 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(34, 211, 238, 0.3)' },
+            { offset: 1, color: 'rgba(34, 211, 238, 0)' },
+          ]),
+        },
+      },
+      {
+        name: 'TX',
+        type: 'line',
+        data: [],
+        smooth: true,
+        symbol: 'none',
+        animationDuration: 400,
+        animationDurationUpdate: 300,
+        animationEasingUpdate: 'linear',
+        lineStyle: { color: '#fbbf24', width: 1.5 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(251, 191, 36, 0.3)' },
+            { offset: 1, color: 'rgba(251, 191, 36, 0)' },
+          ]),
+        },
+      },
+    ],
+  }
+}
+
+async function initChart() {
+  if (!chartRef.value || chart) return
+  const echarts = await loadEcharts()
   if (!chartRef.value || chart) return
   chart = echarts.init(chartRef.value, 'dark')
   // 只设置一次完整配置
-  chart.setOption(chartOptions)
+  chart.setOption(createChartOptions(echarts))
   inited = true
   // 如果有初始数据，更新一下
   if (props.data.length) updateData()

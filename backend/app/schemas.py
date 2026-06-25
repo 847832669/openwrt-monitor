@@ -8,6 +8,7 @@ from typing import Optional
 
 class DeviceCreate(BaseModel):
     name: str = ""
+    icon: str = "router"
     host: str
     port: int = 22
     username: str = "root"
@@ -19,10 +20,12 @@ class DeviceCreate(BaseModel):
 class DeviceOut(BaseModel):
     id: int
     name: str
+    icon: str
     host: str
     port: int
     username: str
     auth_type: str
+    private_key_path: str
     online: bool
     firmware: str
     uptime: int

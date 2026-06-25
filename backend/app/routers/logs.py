@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from ..collectors.base import ssh_pool
 from ..database import async_session
 from ..models import DeviceModel
+from ..security import decrypt_secret
 import shlex
 import asyncio
 
@@ -28,7 +29,7 @@ async def get_logs(
             username=device.username or "root",
             auth_type=device.auth_type or "password",
             private_key_path=device.private_key_path or "",
-            password=device.password or "",
+            password=decrypt_secret(device.password or ""),
         )
 
         cmd = f"logread -l {lines} 2>/dev/null || dmesg 2>/dev/null | tail -n {lines}"

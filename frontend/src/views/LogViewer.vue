@@ -1,14 +1,14 @@
 <template>
-  <div class="p-3 lg:p-6 space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+  <div class="page-container page-container-wide h-full flex flex-col space-y-4">
     <!-- 标题栏 -->
-    <div class="flex items-center justify-between shrink-0">
+    <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between shrink-0">
       <div>
         <h2 class="text-xl font-bold text-white">系统日志</h2>
         <p class="text-sm text-slate-400 mt-0.5">实时查看 OpenWrt 运行日志</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center xl:justify-end">
         <select v-model="logLevel" @change="applyFilter"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+          class="app-control px-2 text-xs text-slate-200">
           <option value="">所有级别</option>
           <option value="error">🔴 错误</option>
           <option value="warn">🟡 警告</option>
@@ -16,29 +16,29 @@
           <option value="debug">⚪ 调试</option>
         </select>
         <input v-model="filterText" @input="applyFilter" placeholder="关键词搜索…"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 w-40 focus:outline-none focus:border-brand-500 placeholder-slate-500" />
+          class="app-control col-span-2 px-3 text-xs text-slate-200 sm:w-44 placeholder-slate-500" />
         <select v-model="logLines" @change="loadLogs"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+          class="app-control px-2 text-xs text-slate-200">
           <option :value="50">50 条</option>
           <option :value="100">100 条</option>
           <option :value="200">200 条</option>
           <option :value="500">500 条</option>
         </select>
         <select v-model="selectedDevice"
-          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+          class="app-control col-span-2 px-3 text-xs text-slate-200 sm:w-52">
           <option value="">选择设备…</option>
-          <option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name || d.host }}</option>
+          <option v-for="d in devices" :key="d.id" :value="d.id">{{ deviceOptionLabel(d) }}</option>
         </select>
       </div>
     </div>
 
     <!-- 控制栏 -->
-    <div class="flex items-center justify-between shrink-0" v-if="selectedDevice">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0" v-if="selectedDevice">
       <div class="flex items-center gap-2 text-xs text-slate-500">
         <span>共 <span class="text-white font-bold">{{ filteredLogs.length }}</span> 条</span>
         <span v-if="loading" class="text-brand-300 animate-pulse">加载中…</span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button @click="toggleAutoRefresh"
           class="text-xs px-2.5 py-1 rounded-lg border transition-colors"
           :class="autoRefresh
@@ -64,8 +64,8 @@
 
     <!-- 日志内容 -->
     <div v-else ref="logContainer"
-      class="flex-1 bg-black/40 border border-slate-800 rounded-xl overflow-auto font-mono text-xs leading-relaxed">
-      <div v-if="filteredLogs.length === 0" class="p-3 lg:p-6 text-center text-slate-600">
+      class="flex-1 bg-black/40 border border-slate-800 rounded-lg overflow-auto font-mono text-xs leading-relaxed">
+      <div v-if="filteredLogs.length === 0" class="p-3 sm:p-6 text-center text-slate-600">
         {{ loading ? '加载中…' : '暂无日志' }}
       </div>
       <div v-else class="p-3 space-y-0.5">
@@ -74,7 +74,7 @@
           :class="levelBg(entry.level)">
           <span class="text-slate-600 w-6 text-right shrink-0 select-none">{{ i + 1 }}</span>
           <span class="shrink-0" v-html="levelIcon(entry.level)"></span>
-          <span class="text-slate-600 w-20 shrink-0">{{ entry.time }}</span>
+          <span class="hidden sm:inline text-slate-600 w-20 shrink-0">{{ entry.time }}</span>
           <span class="flex-1 break-all" :class="levelText(entry.level)">{{ entry.raw }}</span>
         </div>
       </div>
@@ -85,6 +85,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useApi } from '../composables/useApi'
+import { getDeviceDisplayName, getDeviceIcon } from '../utils/deviceDisplay'
 
 const { get } = useApi()
 const devices = ref([])
@@ -97,6 +98,10 @@ const logLines = ref(100)
 const loading = ref(false)
 const autoRefresh = ref(true)
 let refreshTimer = null
+
+function deviceOptionLabel(device) {
+  return `${getDeviceIcon(device)} ${getDeviceDisplayName(device)}`
+}
 
 const filteredLogs = computed(() => {
   let list = entries.value

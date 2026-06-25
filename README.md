@@ -13,6 +13,7 @@
 | 🌐 **网络分析** | 全接口列表、上下行总量、丢包统计、连接协议分布饼图、TCP 状态分布 |
 | 🖥️ **连接设备** | DHCP 租约列表、ARP 在线探测、搜索过滤、设备备注 |
 | ⚙️ **设备管理** | 添加/删除 OpenWrt 设备（SSH 密码或密钥认证） |
+| 🛡️ **系统设置** | 登录保护、敏感信息加密、配置备份恢复、历史数据保留与清理 |
 
 ### 交互特性
 - 🔄 **WebSocket 实时推送**，数据毫秒级到达浏览器
@@ -50,6 +51,17 @@ docker compose up -d
 
 浏览器打开 `http://你内网IP:8000` 即可访问。
 
+默认管理员账号为 `admin` / `admin`。首次部署请在 `docker-compose.yml` 或 Unraid 模板中修改：
+
+```env
+OWM_SECRET_KEY=请改成足够长的随机字符串
+OWM_ADMIN_USERNAME=admin
+OWM_ADMIN_PASSWORD=请改成你的管理员密码
+OWM_HISTORY_RETENTION_DAYS=7
+```
+
+`OWM_SECRET_KEY` 用于登录 JWT 和设备 SSH 密码加密。生产环境不要继续使用默认值。
+
 也可以直接使用 GitHub Actions 自动发布的镜像：
 
 ```bash
@@ -57,6 +69,8 @@ docker run -d \
   --name openwrt-monitor \
   -p 8000:8000 \
   -v openwrt-monitor-data:/app/data \
+  -e OWM_SECRET_KEY="请改成足够长的随机字符串" \
+  -e OWM_ADMIN_PASSWORD="请改成你的管理员密码" \
   --restart unless-stopped \
   ghcr.io/847832669/openwrt-monitor:latest
 ```
@@ -69,6 +83,12 @@ cd backend
 pip install -r requirements.txt
 mkdir -p data
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+本地调试时如果不想每次登录，可临时设置：
+
+```bash
+export OWM_AUTH_DISABLED=true
 ```
 
 **前端：**
@@ -114,16 +134,17 @@ npm run dev
 > - 仓库: `ghcr.io/847832669/openwrt-monitor:latest`
 > - 端口: `8000`
 > - 路径: `/mnt/user/appdata/openwrt-monitor/data/` → `/app/data`
+> - 变量: `OWM_SECRET_KEY`、`OWM_ADMIN_USERNAME`、`OWM_ADMIN_PASSWORD`
 
 安装后打开 `http://你的UnraidIP:8000` 即可使用。
 
 ## 📖 使用指南
 
-1. 打开网页 → **设备管理** → 添加你的 OpenWrt 路由器
-2. 填入 IP（如 `192.168.0.1`）、端口、用户名、密码或 SSH 密钥
-3. 回到 **仪表盘** → 选择设备 → 实时数据开始跳动！
-4. 进入 **连接设备** → 查看家里所有联网设备，支持备注名称
-5. 进入 **系统分析** → 监控 CPU 每核趋势和进程排行
+1. 打开网页 → 使用管理员账号登录
+2. 首次无设备时会自动进入 **初始化向导**，填入 IP（如 `192.168.0.1`）、端口、用户名、密码或 SSH 密钥
+3. 回到 **仪表盘** → 选择设备 → 实时数据开始跳动
+4. 进入 **连接设备** → 查看家里所有联网设备，支持备注名称、图标和重要设备标记
+5. 进入 **系统设置** → 导出配置、导入配置、下载数据库备份或清理历史数据
 
 ## 📊 采集指标
 
@@ -132,6 +153,15 @@ npm run dev
 | 🖥️ 系统 | CPU 使用率、每核负载、内存、磁盘、运行时间、进程 TOP |
 | 🌐 网络 | 10 接口流量、conntrack 连接跟踪、TCP 状态、协议分布 |
 | 🖥️ 在线设备 | DHCP 租约、ARP 表、在线/离线状态 |
+
+## 🛡️ 安全与维护
+
+- 默认启用登录保护，前端页面、API 和 WebSocket 都需要登录后访问。
+- 设备 SSH 密码会使用 `OWM_SECRET_KEY` 派生密钥加密后入库；设备列表 API 不返回密码字段。
+- 编辑设备时密码留空表示保留原密码，不会覆盖为置空。
+- 系统设置页可以导出配置 JSON、导入配置 JSON、下载 SQLite 数据库备份。
+- 配置导出包含设备 SSH 密码明文，请只保存到可信位置。
+- 历史数据保留天数支持 `3 / 7 / 14 / 30`，默认 `7` 天；系统会按配置清理 `metric_history` 和 `traffic_history`。
 
 ## 📁 项目结构
 

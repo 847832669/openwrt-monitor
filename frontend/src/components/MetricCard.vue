@@ -1,11 +1,11 @@
 <template>
-  <div class="min-w-0 min-h-[6.25rem] bg-slate-900/80 border border-slate-800 rounded-xl p-4 xl:p-5 hover:border-slate-700 transition-all"
+  <div class="app-panel min-w-0 min-h-[6.25rem] rounded-lg p-4 xl:p-5 hover:border-slate-700 transition-all"
     :class="{ 'animate-glow': glow }">
     <div class="flex items-start justify-between gap-2 mb-2">
       <span class="min-w-0 text-xs text-slate-400 font-medium uppercase tracking-wider truncate">{{ title }}</span>
-      <span class="shrink-0 text-lg">{{ icon }}</span>
+      <span class="grid place-items-center shrink-0 w-8 h-8 rounded-lg bg-slate-800/50 text-lg">{{ icon }}</span>
     </div>
-    <div class="metric-value min-w-0 text-2xl font-bold text-white mb-1" :class="valueClass">
+    <div class="metric-value min-w-0 text-2xl xl:text-[1.7rem] leading-tight font-bold text-white mb-1" :class="valueClass">
       {{ prefix }}{{ value }}{{ suffix }}
     </div>
     <div v-if="subtitle" class="min-w-0 text-xs text-slate-500 truncate">{{ subtitle }}</div>
