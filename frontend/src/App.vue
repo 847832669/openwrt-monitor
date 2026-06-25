@@ -171,8 +171,8 @@
               <div class="text-[11px] uppercase tracking-[0.16em] text-brand-300">GitHub Sync</div>
               <h3 class="mt-1 truncate text-lg font-bold text-white">
                 更新日志
-                <span v-if="remoteChangelog.title" class="text-sm font-medium text-slate-400">
-                  {{ remoteChangelog.title }}
+                <span v-if="remoteChangelog.versions.length" class="text-sm font-medium text-slate-400">
+                  {{ remoteChangelog.versions.length }} 个版本
                 </span>
               </h3>
             </div>
@@ -221,22 +221,31 @@
               </button>
             </div>
 
-            <div v-else class="space-y-4">
+            <div v-else class="space-y-5">
               <div class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
                 <span>{{ remoteChangelog.sourceLabel }}</span>
                 <span v-if="remoteChangelog.syncedAt">同步于 {{ remoteChangelog.syncedAt }}</span>
               </div>
 
-              <div v-for="section in remoteChangelog.sections" :key="section.title"
+              <div v-for="version in remoteChangelog.versions" :key="version.title"
                 class="rounded-lg border border-slate-800 bg-slate-950/35 p-3">
-                <div class="mb-2 text-sm font-semibold text-slate-200">{{ section.title }}</div>
-                <ul class="space-y-2 text-sm text-slate-400">
-                  <li v-for="item in section.items" :key="section.title + item.text"
-                    class="leading-6">
-                    <span v-if="item.label" class="font-semibold text-slate-200">{{ item.label }}：</span>
-                    <span>{{ item.text }}</span>
-                  </li>
-                </ul>
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <h4 class="text-base font-bold text-white">{{ version.title }}</h4>
+                  <span class="text-[11px] text-slate-500">{{ version.sections.length }} 类更新</span>
+                </div>
+
+                <div class="space-y-3">
+                  <div v-for="section in version.sections" :key="version.title + section.title">
+                    <div class="mb-1.5 text-sm font-semibold text-slate-200">{{ section.title }}</div>
+                    <ul class="space-y-1.5 text-sm text-slate-400">
+                      <li v-for="item in section.items" :key="version.title + section.title + item.text"
+                        class="leading-6">
+                        <span v-if="item.label" class="font-semibold text-slate-200">{{ item.label }}：</span>
+                        <span>{{ item.text }}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -276,11 +285,10 @@ const changelogOpen = ref(false)
 const changelogLoading = ref(false)
 const changelogError = ref('')
 const remoteChangelog = ref({
-  title: '',
   sourceLabel: '',
   syncedAt: '',
   url: GITHUB_CHANGELOG_URL,
-  sections: [],
+  versions: [],
 })
 const displayAlerts = computed(() => {
   const seen = new Set()
@@ -385,59 +393,57 @@ function parseListItem(line) {
   return { label: '', text }
 }
 
+function parseChangelogBlock(lines, headingIndexes, startIndex) {
+  const title = cleanMarkdownText(lines[startIndex].replace(/^##\s+/, ''))
+  const nextIndex = headingIndexes.find(index => index > startIndex)
+  const bodyLines = lines.slice(startIndex + 1, nextIndex > -1 ? nextIndex : lines.length)
+  const sections = []
+  let current = null
+
+  bodyLines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line || line === '暂无') return
+
+    if (/^###\s+/.test(line)) {
+      current = {
+        title: cleanMarkdownText(line.replace(/^###\s+/, '')),
+        items: [],
+      }
+      sections.push(current)
+      return
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      if (!current) {
+        current = { title: '更新内容', items: [] }
+        sections.push(current)
+      }
+      current.items.push(parseListItem(line))
+    }
+  })
+
+  return {
+    title,
+    sections: sections.filter(section => section.items.length > 0),
+  }
+}
+
 function parseChangelogMarkdown(markdown) {
   const lines = String(markdown || '').split(/\r?\n/)
   const headingIndexes = lines
     .map((line, index) => (/^##\s+/.test(line.trim()) ? index : -1))
     .filter(index => index > -1)
-  const unreleasedIndex = headingIndexes.find(index => /^##\s+未发布/.test(lines[index].trim()))
-  const versionIndex = headingIndexes.find(index => /^##\s+v?\d+\.\d+\.\d+/.test(lines[index].trim()))
+  const versionIndexes = headingIndexes.filter(index => /^##\s+v?\d+\.\d+\.\d+/.test(lines[index].trim()))
 
-  function parseBlock(startIndex) {
-    const title = cleanMarkdownText(lines[startIndex].replace(/^##\s+/, ''))
-    const nextIndex = headingIndexes.find(index => index > startIndex)
-    const bodyLines = lines.slice(startIndex + 1, nextIndex > -1 ? nextIndex : lines.length)
-    const sections = []
-    let current = null
+  if (versionIndexes.length === 0) throw new Error('GitHub CHANGELOG 中未找到正式版本段落')
 
-    bodyLines.forEach((rawLine) => {
-      const line = rawLine.trim()
-      if (!line || line === '暂无') return
+  const versions = versionIndexes
+    .map(index => parseChangelogBlock(lines, headingIndexes, index))
+    .filter(version => version.sections.length > 0)
 
-      if (/^###\s+/.test(line)) {
-        current = {
-          title: cleanMarkdownText(line.replace(/^###\s+/, '')),
-          items: [],
-        }
-        sections.push(current)
-        return
-      }
+  if (versions.length === 0) throw new Error('GitHub CHANGELOG 中未找到可展示的更新内容')
 
-      if (/^[-*]\s+/.test(line)) {
-        if (!current) {
-          current = { title: '更新内容', items: [] }
-          sections.push(current)
-        }
-        current.items.push(parseListItem(line))
-      }
-    })
-
-    return {
-      title,
-      sections: sections.filter(section => section.items.length > 0),
-    }
-  }
-
-  if (unreleasedIndex > -1) {
-    const unreleased = parseBlock(unreleasedIndex)
-    if (unreleased.sections.length > 0) return unreleased
-  }
-
-  if (versionIndex < 0) throw new Error('GitHub CHANGELOG 中未找到正式版本段落')
-  const parsed = parseBlock(versionIndex)
-  if (parsed.sections.length === 0) throw new Error('GitHub CHANGELOG 中未找到可展示的更新内容')
-
-  return parsed
+  return { versions }
 }
 
 function parseReleaseMarkdown(release) {
@@ -472,15 +478,13 @@ function parseReleaseMarkdown(release) {
   const usefulSections = sections.filter(section => section.items.length > 0)
   if (usefulSections.length > 0) {
     return {
-      title,
-      sections: usefulSections,
+      versions: [{ title, sections: usefulSections }],
     }
   }
 
   const parsed = parseChangelogMarkdown(`## ${title}\n${body}`)
   return {
-    ...parsed,
-    title,
+    versions: parsed.versions.map(version => ({ ...version, title })),
   }
 }
 
@@ -497,7 +501,7 @@ function formatSyncTime() {
 }
 
 async function loadRemoteChangelog(force = false) {
-  if (!force && remoteChangelog.value.sections.length > 0) return
+  if (!force && remoteChangelog.value.versions.length > 0) return
   changelogLoading.value = true
   changelogError.value = ''
 
