@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     app_name: str = "OpenWrt Monitor"
-    app_version: str = "0.4.2"
+    app_version: str = "0.4.3"
     debug: bool = False
 
     # 数据库
