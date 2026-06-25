@@ -57,39 +57,21 @@
         </div>
         <div class="flex items-center justify-between text-[10px]">
           <span class="text-slate-600">{{ themeMap[theme].label }}</span>
-          <div class="relative"
-            @mouseenter="showChangelog = true"
-            @mouseleave="showChangelog = false"
-            @focusin="showChangelog = true"
-            @focusout="showChangelog = false">
+          <div class="flex items-center gap-1.5">
             <button @click="checkUpdate"
               class="text-slate-600 hover:text-brand-300 transition-colors"
               title="点击检查更新">
               v{{ appVersion }}{{ checkingVer ? ' 🔍' : '' }}
             </button>
-            <div v-if="showChangelog"
-              class="absolute bottom-full right-0 z-50 mb-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-700 bg-slate-950/95 p-3 text-left text-xs shadow-2xl backdrop-blur">
-              <div class="flex items-center justify-between gap-3">
-                <div class="font-semibold text-white">v{{ changelog.version }} 更新日志</div>
-                <a href="https://github.com/847832669/openwrt-monitor/releases" target="_blank"
-                  class="shrink-0 text-[11px] text-brand-300 hover:underline">
-                  Releases
-                </a>
-              </div>
-              <div class="mt-2 max-h-72 overflow-auto space-y-3 pr-1">
-                <div v-for="section in changelog.sections" :key="section.title">
-                  <div class="mb-1 font-semibold text-slate-300">{{ section.title }}</div>
-                  <ul class="space-y-1 text-slate-400">
-                    <li v-for="item in section.items" :key="item" class="leading-5">
-                      {{ item }}
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="mt-2 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
-                点击版本号检查远端最新版本
-              </div>
-            </div>
+            <button @click="openChangelog"
+              class="grid h-5 w-5 place-items-center rounded-md border border-slate-800 text-slate-500 transition-colors hover:border-brand-600/50 hover:bg-brand-600/10 hover:text-brand-300"
+              title="查看更新日志"
+              aria-label="查看更新日志">
+              <svg viewBox="0 0 20 20" class="h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]">
+                <path d="M5 4.5h10M5 8h10M5 11.5h6" stroke-linecap="round" />
+                <path d="M4 2.75h12A1.25 1.25 0 0 1 17.25 4v12A1.25 1.25 0 0 1 16 17.25H4A1.25 1.25 0 0 1 2.75 16V4A1.25 1.25 0 0 1 4 2.75Z" />
+              </svg>
+            </button>
           </div>
         </div>
         <div v-if="updateAvailable"
@@ -178,6 +160,88 @@
                 'bg-slate-800 text-slate-300 border border-slate-600'">
         {{ checkToast }}
       </div>
+
+      <!-- 更新日志弹窗 -->
+      <div v-if="changelogOpen"
+        class="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center"
+        @click.self="closeChangelog">
+        <section class="app-panel flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg shadow-2xl">
+          <header class="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3">
+            <div class="min-w-0">
+              <div class="text-[11px] uppercase tracking-[0.16em] text-brand-300">GitHub Sync</div>
+              <h3 class="mt-1 truncate text-lg font-bold text-white">
+                更新日志
+                <span v-if="remoteChangelog.title" class="text-sm font-medium text-slate-400">
+                  {{ remoteChangelog.title }}
+                </span>
+              </h3>
+            </div>
+            <div class="flex shrink-0 items-center gap-1.5">
+              <button @click="loadRemoteChangelog(true)"
+                class="grid h-8 w-8 place-items-center rounded-md border border-slate-800 text-slate-400 transition-colors hover:border-brand-600/50 hover:bg-brand-600/10 hover:text-brand-300 disabled:cursor-wait disabled:opacity-60"
+                :disabled="changelogLoading"
+                title="刷新">
+                <svg viewBox="0 0 20 20" class="h-4 w-4 fill-none stroke-current stroke-2">
+                  <path d="M16 8a6 6 0 1 0-1.76 4.24" stroke-linecap="round" />
+                  <path d="M16 4v4h-4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <a :href="remoteChangelog.url || GITHUB_RELEASES_URL" target="_blank"
+                class="grid h-8 w-8 place-items-center rounded-md border border-slate-800 text-slate-400 transition-colors hover:border-brand-600/50 hover:bg-brand-600/10 hover:text-brand-300"
+                title="打开 GitHub">
+                <svg viewBox="0 0 20 20" class="h-4 w-4 fill-none stroke-current stroke-2">
+                  <path d="M7.5 5H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5" stroke-linecap="round" />
+                  <path d="M11 3h6v6M9 11l8-8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
+              <button @click="closeChangelog"
+                class="grid h-8 w-8 place-items-center rounded-md border border-slate-800 text-slate-400 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-200"
+                title="关闭">
+                <svg viewBox="0 0 20 20" class="h-4 w-4 fill-none stroke-current stroke-2">
+                  <path d="M5 5l10 10M15 5 5 15" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="flex-1 overflow-auto px-4 py-4">
+            <div v-if="changelogLoading" class="space-y-3">
+              <div class="h-4 w-40 animate-pulse rounded bg-slate-800"></div>
+              <div class="h-20 animate-pulse rounded-lg bg-slate-900/80"></div>
+              <div class="h-24 animate-pulse rounded-lg bg-slate-900/80"></div>
+            </div>
+
+            <div v-else-if="changelogError"
+              class="rounded-lg border border-amber-500/30 bg-amber-900/15 p-4 text-sm text-amber-100">
+              <div class="font-semibold">无法同步更新日志</div>
+              <div class="mt-1 text-amber-200/80">{{ changelogError }}</div>
+              <button @click="loadRemoteChangelog(true)"
+                class="mt-3 rounded-md border border-amber-400/40 px-3 py-1.5 text-xs text-amber-100 transition-colors hover:bg-amber-400/10">
+                重试
+              </button>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
+                <span>{{ remoteChangelog.sourceLabel }}</span>
+                <span v-if="remoteChangelog.syncedAt">同步于 {{ remoteChangelog.syncedAt }}</span>
+              </div>
+
+              <div v-for="section in remoteChangelog.sections" :key="section.title"
+                class="rounded-lg border border-slate-800 bg-slate-950/35 p-3">
+                <div class="mb-2 text-sm font-semibold text-slate-200">{{ section.title }}</div>
+                <ul class="space-y-2 text-sm text-slate-400">
+                  <li v-for="item in section.items" :key="section.title + item.text"
+                    class="leading-6">
+                    <span v-if="item.label" class="font-semibold text-slate-200">{{ item.label }}：</span>
+                    <span>{{ item.text }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -201,40 +265,22 @@ const latestVersion = ref(null)
 const updateAvailable = ref(false)
 const checkingVer = ref(false)
 const checkToast = ref('')
-const showChangelog = ref(false)
 const RAW_PACKAGE_URL = 'https://raw.githubusercontent.com/847832669/openwrt-monitor/main/frontend/package.json'
+const RAW_CHANGELOG_URL = 'https://raw.githubusercontent.com/847832669/openwrt-monitor/main/CHANGELOG.md'
 const TAGS_API_URL = 'https://api.github.com/repos/847832669/openwrt-monitor/tags?per_page=5'
-const changelog = {
-  version: '0.4.2',
-  sections: [
-    {
-      title: '✨ 新功能',
-      items: [
-        '初始化向导、设备详情页和设备识别增强',
-        '品牌/设备图标、自定义图标和重要设备标记',
-        '网络分析页新增终端流量排行',
-        '管理员登录、SSH 密码加密、备份恢复和历史数据维护',
-      ],
-    },
-    {
-      title: '🐛 修复',
-      items: [
-        '初始化向导入口逻辑调整',
-        '仪表盘模块对齐问题修复',
-        '设备密码留空编辑不再覆盖原密码',
-        '版本检查避开 GitHub API 限流',
-      ],
-    },
-    {
-      title: '🎨 优化',
-      items: [
-        '响应式布局适配桌面、4K、Pad 和手机',
-        '路由、ECharts 和图标资源拆分加载',
-        '设备图标增加底色并压缩 SVG 资源',
-      ],
-    },
-  ],
-}
+const RELEASE_API_URL = 'https://api.github.com/repos/847832669/openwrt-monitor/releases/latest'
+const GITHUB_RELEASES_URL = 'https://github.com/847832669/openwrt-monitor/releases'
+const GITHUB_CHANGELOG_URL = 'https://github.com/847832669/openwrt-monitor/blob/main/CHANGELOG.md'
+const changelogOpen = ref(false)
+const changelogLoading = ref(false)
+const changelogError = ref('')
+const remoteChangelog = ref({
+  title: '',
+  sourceLabel: '',
+  syncedAt: '',
+  url: GITHUB_CHANGELOG_URL,
+  sections: [],
+})
 const displayAlerts = computed(() => {
   const seen = new Set()
   return [...wsAlerts.value, ...alertList.value]
@@ -315,6 +361,176 @@ async function checkUpdate() {
     checkingVer.value = false
     setTimeout(() => checkToast.value = '', 3000)
   }
+}
+
+function cleanMarkdownText(value) {
+  return String(value || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*]\s+/, '')
+    .trim()
+}
+
+function parseListItem(line) {
+  const text = cleanMarkdownText(line)
+  const labelMatch = text.match(/^([^：:]{1,32})[：:]\s*(.+)$/)
+  if (labelMatch) {
+    return {
+      label: labelMatch[1].trim(),
+      text: labelMatch[2].trim(),
+    }
+  }
+  return { label: '', text }
+}
+
+function parseChangelogMarkdown(markdown) {
+  const lines = String(markdown || '').split(/\r?\n/)
+  const headingIndexes = lines
+    .map((line, index) => (/^##\s+/.test(line.trim()) ? index : -1))
+    .filter(index => index > -1)
+  const unreleasedIndex = headingIndexes.find(index => /^##\s+未发布/.test(lines[index].trim()))
+  const versionIndex = headingIndexes.find(index => /^##\s+v?\d+\.\d+\.\d+/.test(lines[index].trim()))
+
+  function parseBlock(startIndex) {
+    const title = cleanMarkdownText(lines[startIndex].replace(/^##\s+/, ''))
+    const nextIndex = headingIndexes.find(index => index > startIndex)
+    const bodyLines = lines.slice(startIndex + 1, nextIndex > -1 ? nextIndex : lines.length)
+    const sections = []
+    let current = null
+
+    bodyLines.forEach((rawLine) => {
+      const line = rawLine.trim()
+      if (!line || line === '暂无') return
+
+      if (/^###\s+/.test(line)) {
+        current = {
+          title: cleanMarkdownText(line.replace(/^###\s+/, '')),
+          items: [],
+        }
+        sections.push(current)
+        return
+      }
+
+      if (/^[-*]\s+/.test(line)) {
+        if (!current) {
+          current = { title: '更新内容', items: [] }
+          sections.push(current)
+        }
+        current.items.push(parseListItem(line))
+      }
+    })
+
+    return {
+      title,
+      sections: sections.filter(section => section.items.length > 0),
+    }
+  }
+
+  if (unreleasedIndex > -1) {
+    const unreleased = parseBlock(unreleasedIndex)
+    if (unreleased.sections.length > 0) return unreleased
+  }
+
+  if (versionIndex < 0) throw new Error('GitHub CHANGELOG 中未找到正式版本段落')
+  const parsed = parseBlock(versionIndex)
+  if (parsed.sections.length === 0) throw new Error('GitHub CHANGELOG 中未找到可展示的更新内容')
+
+  return parsed
+}
+
+function parseReleaseMarkdown(release) {
+  const body = String(release.body || '').trim()
+  const title = release.name || release.tag_name || '最新版本'
+  const lines = body.split(/\r?\n/)
+  const sections = []
+  let current = null
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line) return
+
+    if (/^#{2,4}\s+/.test(line)) {
+      current = {
+        title: cleanMarkdownText(line.replace(/^#{2,4}\s+/, '')),
+        items: [],
+      }
+      sections.push(current)
+      return
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      if (!current) {
+        current = { title: '更新内容', items: [] }
+        sections.push(current)
+      }
+      current.items.push(parseListItem(line))
+    }
+  })
+
+  const usefulSections = sections.filter(section => section.items.length > 0)
+  if (usefulSections.length > 0) {
+    return {
+      title,
+      sections: usefulSections,
+    }
+  }
+
+  const parsed = parseChangelogMarkdown(`## ${title}\n${body}`)
+  return {
+    ...parsed,
+    title,
+  }
+}
+
+function formatSyncTime() {
+  const now = new Date()
+  return now.getHours().toString().padStart(2, '0') + ':' +
+    now.getMinutes().toString().padStart(2, '0')
+}
+
+async function loadRemoteChangelog(force = false) {
+  if (!force && remoteChangelog.value.sections.length > 0) return
+  changelogLoading.value = true
+  changelogError.value = ''
+
+  try {
+    const rawRes = await fetch(`${RAW_CHANGELOG_URL}?t=${Date.now()}`, { cache: 'no-store' })
+    if (!rawRes.ok) throw new Error(`GitHub CHANGELOG 读取失败: ${rawRes.status}`)
+    const parsed = parseChangelogMarkdown(await rawRes.text())
+    remoteChangelog.value = {
+      ...parsed,
+      sourceLabel: '来源：GitHub CHANGELOG.md',
+      syncedAt: formatSyncTime(),
+      url: GITHUB_CHANGELOG_URL,
+    }
+  } catch (rawError) {
+    try {
+      const releaseRes = await fetch(RELEASE_API_URL, { cache: 'no-store' })
+      if (!releaseRes.ok) throw new Error(`GitHub Release 读取失败: ${releaseRes.status}`)
+      const release = await releaseRes.json()
+      const parsed = parseReleaseMarkdown(release)
+      remoteChangelog.value = {
+        ...parsed,
+        sourceLabel: '来源：GitHub 最新 Release',
+        syncedAt: formatSyncTime(),
+        url: release.html_url || GITHUB_RELEASES_URL,
+      }
+    } catch (releaseError) {
+      changelogError.value = rawError?.message || releaseError?.message || '请稍后重试'
+    }
+  } finally {
+    changelogLoading.value = false
+  }
+}
+
+async function openChangelog() {
+  changelogOpen.value = true
+  await loadRemoteChangelog(true)
+}
+
+function closeChangelog() {
+  changelogOpen.value = false
 }
 
 async function prefetchLatestVersion() {
