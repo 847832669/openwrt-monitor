@@ -7,6 +7,7 @@
 
 ### 🐛 修复
 - **版本检查**：优先读取 GitHub raw 版本文件，避免 GitHub Tags API 限流导致“无法检查更新”
+- **发布流程**：升级 GitHub Actions 到 Node 24 运行时，消除 Node.js 20 弃用警告
 
 ## v0.4.2 (2026-06-25)
 
