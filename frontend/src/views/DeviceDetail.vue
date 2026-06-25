@@ -330,6 +330,7 @@ import MetricCard from '../components/MetricCard.vue'
 import TrafficChart from '../components/TrafficChart.vue'
 import { useWebSocket } from '../composables/useWebSocket'
 import { getDeviceDisplayName, getDeviceIcon } from '../utils/deviceDisplay'
+import { formatLocalMinute, formatLocalTime } from '../utils/time'
 
 const route = useRoute()
 const { metrics: wsMetrics } = useWebSocket()
@@ -469,9 +470,8 @@ const lanDevices = computed(() => (lanRaw.value?.leases || [])
   .slice(0, 8))
 
 const trafficChartData = computed(() => (history.value.points || []).map((point) => {
-  const d = new Date(point.t)
   return {
-    time: d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'),
+    time: formatLocalMinute(point.t),
     rx: point.rx || 0,
     tx: point.tx || 0,
   }
@@ -530,10 +530,7 @@ function formatUptime(seconds) {
 }
 
 function formatTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleTimeString('zh-CN', { hour12: false })
+  return formatLocalTime(value)
 }
 
 function formatMb(value) {

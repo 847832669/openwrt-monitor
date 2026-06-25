@@ -175,6 +175,7 @@ import { useApi } from '../composables/useApi'
 import { useWebSocket } from '../composables/useWebSocket'
 import TrafficRank from '../components/TrafficRank.vue'
 import { getDeviceDisplayName, getDeviceIcon } from '../utils/deviceDisplay'
+import { formatLocalHourLabel } from '../utils/time'
 
 const { get } = useApi()
 const { metrics: wsMetrics } = useWebSocket()
@@ -263,9 +264,7 @@ function fmtBytes(b) {
 }
 
 function fmtTimeLabel(value) {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:00`
+  return formatLocalHourLabel(value)
 }
 
 function setTrafficPeriod(period) {

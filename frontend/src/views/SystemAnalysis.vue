@@ -86,6 +86,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useApi } from '../composables/useApi'
 import { useWebSocket } from '../composables/useWebSocket'
 import { getDeviceDisplayName, getDeviceIcon } from '../utils/deviceDisplay'
+import { formatLocalMinute, formatLocalTime } from '../utils/time'
 
 const { get } = useApi()
 const { metrics: wsMetrics } = useWebSocket()
@@ -130,16 +131,11 @@ async function loadEcharts() {
 }
 
 function fmtTime(ts) {
-  const d = new Date(ts)
-  return d.getHours().toString().padStart(2,'0') + ':' +
-         d.getMinutes().toString().padStart(2,'0') + ':' +
-         d.getSeconds().toString().padStart(2,'0')
+  return formatLocalTime(ts)
 }
 
 function fmtShortTime(ts) {
-  const d = new Date(ts)
-  return d.getHours().toString().padStart(2,'0') + ':' +
-         d.getMinutes().toString().padStart(2,'0')
+  return formatLocalMinute(ts)
 }
 
 async function loadHistory() {

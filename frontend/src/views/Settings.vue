@@ -132,6 +132,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { requestJson } from '../composables/useApi'
+import { formatLocalDateTime } from '../utils/time'
 
 const security = ref(null)
 const maintenance = ref({ history_retention_days: 7 })
@@ -282,8 +283,7 @@ async function cleanupHistory() {
 }
 
 function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatLocalDateTime(value)
 }
 
 onMounted(reloadAll)

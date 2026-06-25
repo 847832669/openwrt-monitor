@@ -260,6 +260,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWebSocket } from './composables/useWebSocket'
 import { requestJson } from './composables/useApi'
+import { formatLocalTime } from './utils/time'
 
 const route = useRoute()
 const router = useRouter()
@@ -598,11 +599,7 @@ function toggleTheme() {
 }
 
 function formatAlertTime(t) {
-  if (!t) return ''
-  const d = new Date(t)
-  return d.getHours().toString().padStart(2, '0') + ':' +
-    d.getMinutes().toString().padStart(2, '0') + ':' +
-    d.getSeconds().toString().padStart(2, '0')
+  return formatLocalTime(t, { fallback: '' })
 }
 
 function clearAlerts() {
